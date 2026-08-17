@@ -5,7 +5,14 @@
         android:roundIcon="@mipmap/lorie_ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/LorieAppTheme"
-        android:hardwareAccelerated="true">
+        android:hardwareAccelerated="true"
+        android:resizeableActivity="true">
         <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="false" />
+            <meta-data
+            android:name="com.samsung.android.dex.launchwidth"
+            android:value="0" />
+        <meta-data
+            android:name="com.samsung.android.dex.launchheight"
+            android:value="0" />
     </application>
 </manifest>
