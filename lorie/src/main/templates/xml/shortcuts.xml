@@ -12,4 +12,15 @@
             android:targetPackage="@@APPLICATION_ID@@"
             android:targetClass="com.termux.x11.LoriePreferences" />
     </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_x11_icon"
+        android:shortcutId="macdesk_stop"
+        android:shortcutShortLabel="@string/macdesk_stop_label"
+        tools:ignore="UnusedAttribute">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="@@APPLICATION_ID@@"
+            android:targetClass="com.termux.x11.MacDeskStopActivity" />
+    </shortcut>
 </shortcuts>

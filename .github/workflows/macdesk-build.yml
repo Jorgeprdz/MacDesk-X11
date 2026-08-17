@@ -1,0 +1,44 @@
+name: MacDesk X11
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          fetch-depth: 1
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Fetch submodules
+        run: git submodule update --init --recursive --jobs 8 --depth 1
+
+      - name: Build APK + companion
+        run: ./gradlew assembleDebug
+
+      - name: Rename MacDesk APK
+        run: |
+          mkdir -p dist
+          cp ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-universal-debug.apk \
+             ./dist/MacDesk-X11.apk
+          cp ./shell-loader/build/outputs/companion/termux-x11-*-all.deb ./dist/
+
+      - name: Upload MacDesk
+        uses: actions/upload-artifact@v7
+        with:
+          name: MacDesk-X11
+          path: dist/*

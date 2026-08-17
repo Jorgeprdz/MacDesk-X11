@@ -4,6 +4,7 @@
     android:installLocation="internalOnly">
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -33,6 +34,13 @@
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/lorie_shortcuts" />
         </activity>
+        <activity
+            android:name=".MacDeskStopActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=".MacDeskStop"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"
             android:excludeFromRecents="true"

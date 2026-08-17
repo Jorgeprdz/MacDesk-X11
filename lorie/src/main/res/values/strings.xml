@@ -4,7 +4,7 @@
     <!ENTITY TERMUX_X11_APP_NAME "Termux:X11">
     ]>
 <resources>
-    <string name="lorie_app_name">&TERMUX_X11_APP_NAME;</string>
+    <string name="lorie_app_name">MacDesk</string>
 
     <string name="not_connected">Not connected</string>
     <string name="preferences_button_text">   PREFERENCES   </string>
@@ -123,4 +123,5 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_summary_requiresTrackpadAndNative">Requires "Touchscreen input mode" to be "Trackpad" and "Display resolution mode" to be not "native"</string>
     <string name="lorie_pref_summary_screenIdleTimeoutConflict">⚠️ System screen timeout (%s) is longer and takes priority</string>
     <string name="lorie_pref_screenIdleTimeoutSystem">System (%s)</string>
+    <string name="macdesk_stop_label">Stop MacDesk</string>
 </resources>

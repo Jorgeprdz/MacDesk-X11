@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <background android:drawable="@mipmap/lorie_ic_launcher_background"/>
-  <foreground android:drawable="@mipmap/lorie_ic_launcher_foreground"/>
-  <monochrome android:drawable="@mipmap/lorie_ic_launcher_monochrome"/>
+    <background android:drawable="@android:color/white" />
+    <foreground android:drawable="@drawable/macdesk_happy_mac" />
+    <monochrome android:drawable="@drawable/macdesk_happy_mac" />
 </adaptive-icon>

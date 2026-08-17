@@ -16,6 +16,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PictureInPictureParams;
 import android.content.ClipData;
+import android.content.res.ColorStateList;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -23,6 +24,7 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.hardware.display.DisplayManager;
@@ -60,6 +62,9 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 
@@ -91,6 +96,12 @@ public class MainActivity extends AppCompatActivity {
 
     public static Handler handler = new Handler();
     FrameLayout frm;
+    private FrameLayout macDeskSplash;
+    private ProgressBar macDeskProgress;
+    private TextView macDeskStatus;
+    private long macDeskBootStartedAt;
+    private boolean macDeskLaunchRequested = false;
+
     private TouchInputHandler mInputHandler;
     protected ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
@@ -188,6 +199,8 @@ public class MainActivity extends AppCompatActivity {
 
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
+        installMacDeskSplash();
+        handler.postDelayed(this::launchMacDesk, 180);
         applyWindowSettings();
 
         frm = findViewById(R.id.frame);
@@ -277,8 +290,182 @@ public class MainActivity extends AppCompatActivity {
         findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
     }
 
+
+    private int macDeskDp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private TextView macDeskText(String text, float sp, int color) {
+        TextView v = new TextView(this);
+        v.setText(text);
+        v.setTextSize(sp);
+        v.setTextColor(color);
+        v.setGravity(Gravity.CENTER);
+        return v;
+    }
+
+    private void installMacDeskSplash() {
+        macDeskBootStartedAt = SystemClock.uptimeMillis();
+
+        FrameLayout content = findViewById(android.R.id.content);
+        macDeskSplash = new FrameLayout(this);
+        macDeskSplash.setBackgroundColor(Color.BLACK);
+        macDeskSplash.setClickable(true);
+        macDeskSplash.setFocusable(true);
+        content.addView(macDeskSplash, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+
+        LinearLayout stack = new LinearLayout(this);
+        stack.setOrientation(LinearLayout.VERTICAL);
+        stack.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        FrameLayout.LayoutParams stackLp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER);
+        stackLp.leftMargin = macDeskDp(32);
+        stackLp.rightMargin = macDeskDp(32);
+        macDeskSplash.addView(stack, stackLp);
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.macdesk_boot_apple);
+        logo.setAdjustViewBounds(true);
+        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        stack.addView(logo, new LinearLayout.LayoutParams(macDeskDp(230), macDeskDp(230)));
+
+        TextView title = macDeskText("MacDesk", 34, Color.rgb(238, 238, 238));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        titleLp.topMargin = macDeskDp(12);
+        stack.addView(title, titleLp);
+
+        macDeskStatus = macDeskText("Starting MacDesk…", 14, Color.rgb(160, 160, 160));
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        statusLp.topMargin = macDeskDp(64);
+        stack.addView(macDeskStatus, statusLp);
+
+        macDeskProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        macDeskProgress.setIndeterminate(false);
+        macDeskProgress.setMax(100);
+        macDeskProgress.setProgress(6);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            macDeskProgress.setProgressTintList(ColorStateList.valueOf(Color.rgb(225,225,225)));
+            macDeskProgress.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(38,38,38)));
+        }
+
+        LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, macDeskDp(4));
+        progressLp.topMargin = macDeskDp(16);
+        progressLp.leftMargin = macDeskDp(30);
+        progressLp.rightMargin = macDeskDp(30);
+        stack.addView(macDeskProgress, progressLp);
+
+        TextView hint = macDeskText("Happy Mac is waking up…", 11, Color.rgb(82,82,82));
+        LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        hintLp.topMargin = macDeskDp(14);
+        stack.addView(hint, hintLp);
+
+        handler.post(macDeskConnectionWatch);
+    }
+
+    private void macDeskSetProgress(int progress, String status) {
+        if (macDeskProgress != null)
+            macDeskProgress.setProgress(progress);
+        if (macDeskStatus != null && status != null)
+            macDeskStatus.setText(status);
+    }
+
+    private void launchMacDesk() {
+        if (macDeskLaunchRequested)
+            return;
+        macDeskLaunchRequested = true;
+
+        if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PERMISSION_GRANTED) {
+            macDeskSetProgress(5, "Permission needed: Run commands in Termux");
+            return;
+        }
+
+        macDeskSetProgress(18, "Starting X11…");
+
+        Intent command = new Intent();
+        command.setClassName("com.termux", "com.termux.app.RunCommandService");
+        command.setAction("com.termux.RUN_COMMAND");
+        command.putExtra("com.termux.RUN_COMMAND_PATH",
+                "/data/data/com.termux/files/usr/bin/bash");
+        command.putExtra("com.termux.RUN_COMMAND_ARGUMENTS",
+                new String[]{"-lc",
+                        "if command -v macdesk >/dev/null 2>&1; then exec macdesk; " +
+                        "elif [ -x \"$HOME/bin/macdesk\" ]; then exec \"$HOME/bin/macdesk\"; " +
+                        "else echo 'macdesk command not found' >&2; exit 127; fi"});
+        command.putExtra("com.termux.RUN_COMMAND_WORKDIR",
+                "/data/data/com.termux/files/home");
+        command.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+
+        try {
+            startService(command);
+            macDeskSetProgress(32, "Launching desktop…");
+        } catch (SecurityException e) {
+            macDeskSetProgress(5, "Grant Run commands in Termux permission");
+            Log.e("MacDesk", "RUN_COMMAND permission missing", e);
+        } catch (Throwable e) {
+            macDeskSetProgress(5, "Could not start MacDesk");
+            Log.e("MacDesk", "Unable to launch macdesk", e);
+        }
+    }
+
+    private final Runnable macDeskConnectionWatch = new Runnable() {
+        @Override public void run() {
+            if (macDeskSplash == null)
+                return;
+
+            boolean connected = false;
+            try {
+                LorieView v = getLorieView();
+                connected = v != null && v.connected();
+            } catch (Throwable ignored) {}
+
+            long elapsed = SystemClock.uptimeMillis() - macDeskBootStartedAt;
+
+            if (connected) {
+                macDeskSetProgress(100, "Ready");
+                macDeskSplash.animate()
+                        .alpha(0f)
+                        .setDuration(420)
+                        .withEndAction(() -> {
+                            if (macDeskSplash != null) {
+                                ViewGroup parent = (ViewGroup) macDeskSplash.getParent();
+                                if (parent != null) parent.removeView(macDeskSplash);
+                                macDeskSplash = null;
+                            }
+                        })
+                        .start();
+                return;
+            }
+
+            if (macDeskLaunchRequested) {
+                if (elapsed < 1800)
+                    macDeskSetProgress(45, "Starting X server…");
+                else if (elapsed < 4500)
+                    macDeskSetProgress(62, "Loading workspace…");
+                else if (elapsed < 9000)
+                    macDeskSetProgress(78, "Starting XFCE…");
+                else
+                    macDeskSetProgress(88, "Almost there…");
+            }
+
+            handler.postDelayed(this, 250);
+        }
+    };
+
     @Override
     protected void onDestroy() {
+        handler.removeCallbacks(macDeskConnectionWatch);
         handler.removeCallbacks(screenIdleTimeoutCheck);
         if (mInputHandler != null)
             mInputHandler.onDestroy();
