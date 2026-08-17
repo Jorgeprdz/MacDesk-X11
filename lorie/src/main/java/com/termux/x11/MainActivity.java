@@ -101,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView macDeskStatus;
     private long macDeskBootStartedAt;
     private boolean macDeskLaunchRequested = false;
+    private boolean macDeskFullscreenRequested = false;
 
     private TouchInputHandler mInputHandler;
     protected ICmdEntryInterface service = null;
@@ -191,6 +192,9 @@ public class MainActivity extends AppCompatActivity {
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
         if (modeValue > 2)
             prefs.touchMode.put("1");
+
+        // MacDesk is a desktop shell: always start in immersive fullscreen.
+        prefs.fullscreen.put(true);
 
         oldFullscreen = prefs.fullscreen.get();
         oldHideCutout = prefs.hideCutout.get();
@@ -1068,6 +1072,37 @@ public class MainActivity extends AppCompatActivity {
         setTerminalToolbarView();
     }
 
+    @Override
+    public void onTopResumedActivityChanged(boolean isTopResumedActivity) {
+        super.onTopResumedActivityChanged(isTopResumedActivity);
+
+        if (isTopResumedActivity) {
+            requestMacDeskFullscreenTask();
+            applyImmersiveMode();
+        }
+    }
+
+    private void requestMacDeskFullscreenTask() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+            return;
+
+        if (!isInMultiWindowMode())
+            return;
+
+        if (macDeskFullscreenRequested)
+            return;
+
+        macDeskFullscreenRequested = true;
+
+        try {
+            requestFullscreenMode(FULLSCREEN_MODE_REQUEST_ENTER, null);
+            Log.i("MacDesk", "Requested true fullscreen from desktop windowing");
+        } catch (Throwable t) {
+            macDeskFullscreenRequested = false;
+            Log.w("MacDesk", "True fullscreen request rejected", t);
+        }
+    }
+
     @SuppressLint("WrongConstant")
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
@@ -1076,6 +1111,7 @@ public class MainActivity extends AppCompatActivity {
 
         // The system bars come back when the window loses focus.
         if (hasFocus) {
+            requestMacDeskFullscreenTask();
             applyImmersiveMode();
             LorieView.markUserActivity();
             applyScreenIdleTimeout();
