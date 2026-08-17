@@ -1,8 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:icon="@drawable/macdesk_happy_mac"
+        android:icon="@mipmap/lorie_ic_launcher"
         android:label="@string/lorie_app_name"
-        android:roundIcon="@drawable/macdesk_happy_mac"
+        android:roundIcon="@mipmap/lorie_ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/LorieAppTheme"
         android:hardwareAccelerated="true"
