@@ -60,7 +60,7 @@ jobs:
           sha256sum DeXCorrect-v0.3.apk
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DeXCorrect-v0.3
           path: tools/DeXCorrect/DeXCorrect-v0.3.apk
