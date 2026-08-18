@@ -391,14 +391,22 @@ public class DexCorrectService extends AccessibilityService
              * nos deja preparada la arquitectura
              * para contexto completo después.
              */
-            spellSession.getSentenceSuggestions(
-                    new TextInfo[]{
-                            new TextInfo(
-                                    word,
-                                    77,
-                                    seq
-                            )
-                    },
+            /*
+             * v0.3:
+             * Gboard en este dispositivo crea correctamente
+             * la sesión pero no devuelve callback mediante
+             * getSentenceSuggestions().
+             *
+             * Como DeX Correct consulta UNA palabra por vez,
+             * usamos la API clásica getSuggestions(), cuyo
+             * resultado llega por onGetSuggestions().
+             */
+            spellSession.getSuggestions(
+                    new TextInfo(
+                            word,
+                            77,
+                            seq
+                    ),
                     5
             );
 

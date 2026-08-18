@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   build:
-    name: Build DeX Correct v0.2
+    name: Build DeX Correct v0.3
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -49,20 +49,20 @@ jobs:
 
           cp \
             app/build/outputs/apk/debug/app-debug.apk \
-            DeXCorrect-v0.2.apk
+            DeXCorrect-v0.3.apk
 
           echo
           echo "===== APK ====="
-          ls -lh DeXCorrect-v0.2.apk
+          ls -lh DeXCorrect-v0.3.apk
 
           echo
           echo "===== SHA256 ====="
-          sha256sum DeXCorrect-v0.2.apk
+          sha256sum DeXCorrect-v0.3.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DeXCorrect-v0.2
-          path: tools/DeXCorrect/DeXCorrect-v0.2.apk
+          name: DeXCorrect-v0.3
+          path: tools/DeXCorrect/DeXCorrect-v0.3.apk
           if-no-files-found: error
           retention-days: 30
