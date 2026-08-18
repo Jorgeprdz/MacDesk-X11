@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DeX Correct</string>
+    <string name="service_desc">Autocorrección para teclado físico en Samsung DeX.</string>
+</resources>
