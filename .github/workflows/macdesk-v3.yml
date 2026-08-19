@@ -1,0 +1,45 @@
+name: MacDesk V3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - s25-neo-v3
+    paths:
+      - 'v3/**'
+      - '.github/workflows/macdesk-v3.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate scripts
+        run: |
+          bash -n v3/pkgroot/data/data/com.termux/files/usr/bin/macdesk
+          bash -n v3/pkgroot/data/data/com.termux/files/usr/bin/macdesk-stop
+          bash -n v3/pkgroot/data/data/com.termux/files/usr/bin/macdesk-gpu
+          bash -n v3/pkgroot/data/data/com.termux/files/usr/bin/macdesk-browser
+          bash -n v3/pkgroot/data/data/com.termux/files/usr/bin/macdesk-files
+          bash -n v3/pkgroot/data/data/com.termux/files/usr/bin/macdesk-v3-init
+          bash -n v3/pkgroot/data/data/com.termux/files/usr/libexec/macdesk-v3/session
+
+      - name: Build Termux package
+        run: |
+          mkdir -p dist
+          chmod 755 v3/pkgroot/data/data/com.termux/files/usr/bin/*
+          chmod 755 v3/pkgroot/data/data/com.termux/files/usr/libexec/macdesk-v3/session
+          dpkg-deb --root-owner-group --build v3/pkgroot dist/macdesk-v3_3.0.0_all.deb
+          sha256sum dist/macdesk-v3_3.0.0_all.deb > dist/SHA256SUMS
+
+      - name: Upload MacDesk V3
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacDesk-V3
+          path: dist/*
+          if-no-files-found: error

@@ -1,0 +1,32 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+HOME="${HOME:-/data/data/com.termux/files/home}"
+export DISPLAY=:1
+export XDG_CONFIG_HOME="$HOME/.config/macdesk-v3"
+export XDG_CACHE_HOME="$HOME/.cache/macdesk-v3"
+export XDG_STATE_HOME="$HOME/.local/state/macdesk-v3"
+export XDG_DATA_DIRS="$HOME/.local/share:$PREFIX/share"
+unset VK_DRIVER_FILES MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER
+export LIBGL_ALWAYS_SOFTWARE=1
+mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME"
+"$PREFIX/bin/macdesk-v3-init" >/dev/null 2>&1 || true
+(
+  sleep 4
+  THEME="Adwaita"; ICONS="Adwaita"
+  [ -d "$PREFIX/share/themes/MacTahoe-Light" ] && THEME="MacTahoe-Light"
+  [ -d "$PREFIX/share/icons/MacTahoe" ] && ICONS="MacTahoe"
+  xfconf-query -c xsettings -p /Net/ThemeName -s "$THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/ThemeName -n -t string -s "$THEME" 2>/dev/null || true
+  xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICONS" 2>/dev/null || xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s "$ICONS" 2>/dev/null || true
+  xfconf-query -c xsettings -p /Gtk/FontName -s "Noto Sans 9" 2>/dev/null || xfconf-query -c xsettings -p /Gtk/FontName -n -t string -s "Noto Sans 9" 2>/dev/null || true
+  xfconf-query -c xsettings -p /Xft/DPI -s 90 2>/dev/null || xfconf-query -c xsettings -p /Xft/DPI -n -t int -s 90 2>/dev/null || true
+  xfconf-query -c xfwm4 -p /general/theme -s "$THEME" 2>/dev/null || true
+  xfconf-query -c xfwm4 -p /general/use_compositing -s false 2>/dev/null || xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s false 2>/dev/null || true
+  IMG="$HOME/storage/shared/Download/Streetxfce.jpg"; [ -f "$IMG" ] || IMG="/storage/emulated/0/Download/Streetxfce.jpg"
+  if [ -f "$IMG" ]; then
+    xfconf-query -c xfce4-desktop -lv 2>/dev/null | awk '/\/last-image[[:space:]]/ {print $1}' | while read -r prop; do
+      xfconf-query -c xfce4-desktop -p "$prop" -s "$IMG" 2>/dev/null || true
+    done
+  fi
+) &
+exec xfce4-session

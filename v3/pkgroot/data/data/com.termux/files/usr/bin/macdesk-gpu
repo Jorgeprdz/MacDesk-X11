@@ -1,0 +1,9 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+if [ "$#" -eq 0 ]; then echo "Uso: macdesk-gpu <comando> [args...]"; return 2 2>/dev/null || false; fi
+ICD="$(find "$PREFIX/share/vulkan/icd.d" -maxdepth 1 -type f \( -iname '*freedreno*.json' -o -iname '*turnip*.json' \) 2>/dev/null | head -1)"
+if [ -z "$ICD" ]; then exec "$@"; fi
+unset LIBGL_ALWAYS_SOFTWARE
+export DISPLAY="${DISPLAY:-:1}" VK_DRIVER_FILES="$ICD" MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink
+exec "$@"

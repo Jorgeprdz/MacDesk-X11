@@ -1,0 +1,27 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+HOME="${HOME:-/data/data/com.termux/files/home}"
+CONF="$HOME/.config/macdesk-v3"
+RESET="${1:-}"
+if [ "$RESET" = "--reset" ]; then rm -rf "$CONF"; fi
+mkdir -p "$CONF/gtk-3.0" "$CONF/gtk-4.0" "$CONF/xfce4/xfconf/xfce-perchannel-xml" "$CONF/xfce4"
+THEME="Adwaita"; ICONS="Adwaita"
+[ -d "$PREFIX/share/themes/MacTahoe-Light" ] && THEME="MacTahoe-Light"
+[ -d "$PREFIX/share/icons/MacTahoe" ] && ICONS="MacTahoe"
+printf '[Settings]\ngtk-theme-name=%s\ngtk-icon-theme-name=%s\ngtk-font-name=Noto Sans 9\n' "$THEME" "$ICONS" > "$CONF/gtk-3.0/settings.ini"
+printf '[Settings]\ngtk-theme-name=%s\ngtk-icon-theme-name=%s\ngtk-font-name=Noto Sans 9\n' "$THEME" "$ICONS" > "$CONF/gtk-4.0/settings.ini"
+cat > "$CONF/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<EOF_XFWM
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="theme" type="string" value="$THEME"/>
+    <property name="use_compositing" type="bool" value="false"/>
+  </property>
+</channel>
+EOF_XFWM
+cat > "$CONF/xfce4/helpers.rc" <<'EOF_HELPERS'
+WebBrowser=macdesk-browser
+FileManager=macdesk-files
+TerminalEmulator=xfce4-terminal
+EOF_HELPERS

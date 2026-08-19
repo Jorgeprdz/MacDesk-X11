@@ -1,0 +1,11 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+if command -v zen-browser >/dev/null 2>&1; then exec "$PREFIX/bin/macdesk-gpu" zen-browser "$@"; fi
+if command -v zen >/dev/null 2>&1; then exec "$PREFIX/bin/macdesk-gpu" zen "$@"; fi
+if command -v proot-distro >/dev/null 2>&1 && proot-distro list 2>/dev/null | grep -q 'debian'; then
+  ZEN="$(proot-distro login debian --user desktop -- bash -lc 'command -v zen-browser || command -v zen || { [ -x "$HOME/.local/opt/zen/zen" ] && echo "$HOME/.local/opt/zen/zen"; } || { [ -x /opt/zen/zen ] && echo /opt/zen/zen; }' 2>/dev/null | tail -1)"
+  if [ -n "$ZEN" ]; then exec proot-distro login debian --user desktop --shared-tmp -- env DISPLAY=:1 PULSE_SERVER=127.0.0.1 "$ZEN" "$@"; fi
+fi
+if command -v firefox >/dev/null 2>&1; then exec "$PREFIX/bin/macdesk-gpu" firefox "$@"; fi
+if [ "$#" -gt 0 ]; then termux-open-url "$1" 2>/dev/null || true; else termux-open-url "about:blank" 2>/dev/null || true; fi

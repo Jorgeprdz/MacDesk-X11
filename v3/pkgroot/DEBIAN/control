@@ -1,0 +1,10 @@
+Package: macdesk-v3
+Version: 3.0.0
+Architecture: all
+Maintainer: S25 Neo <s25neo@local>
+Depends: bash
+Section: x11
+Priority: optional
+Description: MacDesk V3 native desktop layer for S25 Neo
+ Native XFCE on Termux:X11 with stable desktop rendering and opt-in
+ Turnip/Zink GPU acceleration per application.

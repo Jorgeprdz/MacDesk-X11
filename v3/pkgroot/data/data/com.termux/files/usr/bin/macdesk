@@ -1,0 +1,31 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+HOME="${HOME:-/data/data/com.termux/files/home}"
+STATE="$HOME/.local/state/macdesk-v3"; CACHE="$HOME/.cache/macdesk-v3"; CONF="$HOME/.config/macdesk-v3"
+mkdir -p "$STATE" "$CACHE" "$CONF"
+"$PREFIX/bin/macdesk-stop" --quiet >/dev/null 2>&1 || true
+sleep 2
+pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1 || true
+export DISPLAY=:1
+nohup termux-x11 :1 -dpi 90 >"$CACHE/x11.log" 2>&1 &
+X11PID=$!; echo "$X11PID" > "$STATE/x11.pid"
+OK=0; N=0
+while [ "$N" -lt 40 ]; do
+  if DISPLAY=:1 xdpyinfo >/dev/null 2>&1; then OK=1; break; fi
+  N=$((N+1)); sleep 0.25
+done
+if [ "$OK" -ne 1 ]; then
+  echo "❌ Termux:X11 no abrió :1"; tail -20 "$CACHE/x11.log" 2>/dev/null
+  return 1 2>/dev/null || false
+fi
+am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1 || true
+nohup env -u VK_DRIVER_FILES -u MESA_LOADER_DRIVER_OVERRIDE -u GALLIUM_DRIVER LIBGL_ALWAYS_SOFTWARE=1 DISPLAY=:1 XDG_CONFIG_HOME="$CONF" XDG_CACHE_HOME="$CACHE" XDG_DATA_DIRS="$HOME/.local/share:$PREFIX/share" dbus-run-session -- "$PREFIX/libexec/macdesk-v3/session" >"$CACHE/session.log" 2>&1 &
+SESSID=$!; echo "$SESSID" > "$STATE/session.pid"; echo 1 > "$STATE/running"
+sleep 5
+echo
+echo "🍎 MacDesk V3 / S25 Neo"
+echo "X11=:1 · 90 DPI"
+echo "Desktop=XFCE native · compositor OFF"
+echo "GPU apps=macdesk-gpu → Turnip/Zink/Adreno"
+echo "Browser=Zen Light preferred"
