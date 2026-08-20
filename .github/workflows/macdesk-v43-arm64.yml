@@ -1,0 +1,54 @@
+name: MacDesk V4.3 ARM64 GPU Stack
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'macdesk-v43-gpu-build-*'
+    paths:
+      - '.github/workflows/macdesk-v43-arm64.yml'
+      - 'tools/v43/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-bookworm-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    container:
+      image: debian:12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Build Mesa Turnip + patched wlroots + Labwc
+        shell: bash
+        run: |
+          set -o pipefail
+          bash tools/v43/build-arm64-bookworm.sh 2>&1 | tee macdesk-v43-build.log
+
+      - name: Upload ARM64 Bookworm GPU stack
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: MacDesk-V4.3-ARM64-Bookworm
+          path: |
+            dist/v43/macdesk-v43-arm64-bookworm.tar.zst
+            dist/v43/SHA256SUMS
+            dist/v43/build-manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: MacDesk-V4.3-Build-Logs
+          path: |
+            macdesk-v43-build.log
+            build-logs/v43/**
+          if-no-files-found: warn
+          retention-days: 14
