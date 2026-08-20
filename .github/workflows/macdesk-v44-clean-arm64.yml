@@ -56,6 +56,7 @@ jobs:
             libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev libxcb-xinput-dev \
             libxcb-icccm4-dev libxcb-ewmh-dev libxcb-res0-dev libxcb-util-dev \
             libxcb-image0-dev libxcb-render-util0-dev libxcb-cursor-dev \
+            libxshmfence-dev libxcb-keysyms1-dev \
             liblcms2-dev libpng-dev librsvg2-dev libcairo2-dev libpango1.0-dev libglib2.0-dev \
             libelf-dev libunwind-dev zlib1g-dev libzstd-dev hwdata scdoc xwayland
           DEBIAN_FRONTEND=noninteractive apt-get install -y -t bookworm-backports \
