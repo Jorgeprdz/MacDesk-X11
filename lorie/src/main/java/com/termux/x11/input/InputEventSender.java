@@ -72,6 +72,22 @@ public final class InputEventSender {
     };
 
     /**
+     * Samsung DeX may report Meta-left down followed by Alt-left up for the
+     * same physical key. Correct only that impossible release: Meta must be
+     * tracked down and Alt must not be tracked down. A genuine Alt release,
+     * including Alt while Meta is held, remains unchanged.
+     */
+    static int canonicalizeSamsungMetaRelease(int keyCode, boolean pressed, Set<Integer> pressedKeys) {
+        if (pressed || keyCode != KEYCODE_ALT_LEFT || pressedKeys.contains(KEYCODE_ALT_LEFT))
+            return keyCode;
+        if (pressedKeys.contains(KEYCODE_META_LEFT))
+            return KEYCODE_META_LEFT;
+        if (pressedKeys.contains(KEYCODE_META_RIGHT))
+            return KEYCODE_META_RIGHT;
+        return keyCode;
+    }
+
+    /**
      * Releases modifier keys that are tracked as pressed in mPressedKeys but are absent from
      * the incoming event's metaState. Call this at the start of real (non-synthetic) event
      * handling to clear modifiers that were "stuck" because their key-up events were swallowed
@@ -203,8 +219,10 @@ public final class InputEventSender {
      * avoids sending a key-up event for a key that was previously injected as a text-event.
      */
     public boolean sendKeyEvent(KeyEvent e) {
-        int keyCode = e.getKeyCode();
+        int originalKeyCode = e.getKeyCode();
         boolean pressed = e.getAction() == KeyEvent.ACTION_DOWN;
+        int keyCode = canonicalizeSamsungMetaRelease(originalKeyCode, pressed, mPressedKeys);
+        boolean correctedSamsungMetaRelease = keyCode != originalKeyCode;
 
         if (e.getDeviceId() >= 0)
             syncLockKeysState(e.getMetaState());
@@ -237,7 +255,9 @@ public final class InputEventSender {
         // For Enter getUnicodeChar() returns 10 (line feed), but we still
         // want to send it as KeyEvent.
         char unicode = keyCode != KEYCODE_ENTER ? (char) e.getUnicodeChar() : 0;
-        int scancode = (preferScancodes || !no_modifiers) ? e.getScanCode(): 0;
+        int scancode = correctedSamsungMetaRelease
+                ? 0
+                : ((preferScancodes || !no_modifiers) ? e.getScanCode(): 0);
 
         if (!preferScancodes) {
             if (pressed && unicode != 0 && no_modifiers) {
