@@ -1,0 +1,31 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+
+quiet="${1:-}"
+BASE="$HOME/MacDesk-V5"
+prefs_state="$BASE/state/termux-x11-preferences.session"
+proot-distro login fedora --shared-tmp -- /bin/bash -lc '
+  for name in yambar waybar plank swaybg Xwayland fuzzel foot pcmanfm nautilus chromium soffice.bin kgx labwc phosh phoc; do
+    pkill -TERM -x "$name" 2>/dev/null || true
+  done
+  sleep 1
+  for name in yambar waybar plank swaybg Xwayland fuzzel foot pcmanfm nautilus chromium soffice.bin kgx labwc phosh phoc; do
+    pkill -KILL -x "$name" 2>/dev/null || true
+  done
+  pkill -TERM -f "^/usr/libexec/xdg-desktop-portal" 2>/dev/null || true
+  pkill -TERM -f "^/usr/libexec/(gvfs|goa)|^/usr/libexec/localsearch" 2>/dev/null || true
+  rm -f /tmp/runtime-root/wayland-0 /tmp/runtime-root/wayland-0.lock
+  rm -f /tmp/runtime-macdesk/wayland-0
+  if [ -s /tmp/runtime-macdesk/nautilus-service.pid ]; then
+    kill "$(cat /tmp/runtime-macdesk/nautilus-service.pid)" 2>/dev/null || true
+  fi
+  rm -f /tmp/runtime-macdesk/nautilus.requests /tmp/runtime-macdesk/nautilus-service.pid
+' >/dev/null 2>&1 || true
+pkill -f virgl_test_server_android 2>/dev/null || true
+if [ -s "$prefs_state" ] && termux-x11-preference <"$prefs_state" >/dev/null 2>&1; then
+  rm -f "$prefs_state"
+fi
+pkill -f 'termux-x11.*:0' 2>/dev/null || true
+mkdir -p "$BASE/state"
+printf 'STATUS=STOPPED\nSTOPPED=%s\n' "$(date -Iseconds)" >"$BASE/state/session.env"
+[ "$quiet" = --quiet ] || echo 'S25 Neo stopped; Android is unaffected.'

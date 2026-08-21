@@ -1,0 +1,81 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Reproducible S25 Neo launcher with explicit GPU verification and retry.
+set -u
+
+BASE="$HOME/MacDesk-V5"
+STACK="$BASE/vendor/phosh-termux-gpu"
+LOG="$BASE/logs/macdesk.log"
+STATE="$BASE/state/session.env"
+GUEST=/root/launch-labwc-gpu.sh
+mkdir -p "$BASE/logs" "$BASE/state"
+
+log() { printf '%s %s\n' "$(date -Iseconds)" "$*" | tee -a "$LOG"; }
+stop_old() { "$BASE/scripts/macdesk-stop" --quiet >/dev/null 2>&1 || true; }
+
+start_attempt() {
+  local renderer="$1" attempt="$2" start_ms now_ms session_pid ready=0
+  start_ms="$(date +%s%3N)"
+  stop_old
+  log "attempt=$attempt renderer=$renderer starting Termux:X11/audio"
+  bash "$STACK/termux/start-display.sh" >>"$LOG" 2>&1 || return 1
+  prefs_state="$BASE/state/termux-x11-preferences.session"
+  termux-x11-preference list >"$prefs_state" 2>>"$LOG" || rm -f "$prefs_state"
+  termux-x11-preference fullscreen:true >>"$LOG" 2>&1 || log 'WARNING unable to enable Termux:X11 fullscreen'
+  "$BASE/scripts/s25-storage-prepare" >>"$LOG" 2>&1 || log 'PHONE_STORAGE=UNAVAILABLE (desktop startup continues)'
+  proot-distro login fedora --shared-tmp \
+    -e DISPLAY=:0 -e PULSE_SERVER=tcp:127.0.0.1 \
+    -e S25_NEO_RENDERER="$renderer" \
+    -e S25_NEO_MODE="${S25_NEO_MODE:-1920x1080}" \
+    -e MACDESK_BASE="$BASE" \
+    -- "$GUEST" >>"$LOG" 2>&1 &
+  session_pid=$!
+
+  for tick in $(seq 1 150); do
+    if ! kill -0 "$session_pid" 2>/dev/null; then
+      wait "$session_pid" 2>/dev/null; rc=$?
+      log "attempt=$attempt compositor exited rc=$rc"
+      tail -80 "$BASE/logs/labwc.log" >>"$LOG"
+      return 1
+    fi
+    if [ -S /data/data/com.termux/files/usr/tmp/runtime-root/wayland-0 ] && \
+       pgrep -x labwc >/dev/null && pgrep -f 'termux-x11.*:0' >/dev/null; then
+      ready=1
+      break
+    fi
+    sleep .1
+  done
+  [ "$ready" -eq 1 ] || { log "attempt=$attempt readiness timeout"; return 1; }
+
+  if [ "$renderer" = vulkan ]; then
+    grep -F "Vulkan device: 'Adreno (TM) 830" "$BASE/logs/labwc.log" >/dev/null || {
+      log "attempt=$attempt rejected: Vulkan Adreno evidence missing"
+      return 1
+    }
+    grep -F 'Driver name: turnip Mesa driver' "$BASE/logs/labwc.log" >/dev/null || {
+      log "attempt=$attempt rejected: Turnip evidence missing"
+      return 1
+    }
+  fi
+
+  sleep 5
+  kill -0 "$session_pid" 2>/dev/null && pgrep -x labwc >/dev/null || return 1
+  now_ms="$(date +%s%3N)"
+  {
+    printf 'STATUS=RUNNING\n'
+    printf 'RENDERER=%s\n' "$renderer"
+    printf 'BOOT_TIME_MS=%s\n' "$((now_ms-start_ms))"
+    printf 'SESSION_PID=%s\n' "$session_pid"
+    printf 'STARTED=%s\n' "$(date -Iseconds)"
+  } >"$STATE"
+  log "healthy renderer=$renderer boot_ms=$((now_ms-start_ms))"
+  [ "$renderer" = vulkan ] || log 'WARNING software fallback active; GPU PASS must not be declared'
+  wait "$session_pid"
+}
+
+: >"$LOG"
+for attempt in 1 2 3; do
+  start_attempt vulkan "$attempt" && exit 0
+done
+
+log 'GPU failed after 3 distinct cold starts; starting explicitly reported pixman fallback'
+start_attempt pixman fallback
