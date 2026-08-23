@@ -1,0 +1,43 @@
+# MacDesk Remote Android launcher local build/signing artifacts
+android/macdesk-remote-launcher/build/
+android/macdesk-remote-launcher/sdk/
+android/macdesk-remote-launcher/signing/
+
+# ========================================
+# MacDesk V6 — local/runtime/legacy
+# ========================================
+
+.env
+.env.*
+
+*.pid
+*.sock
+*.log
+*.bak
+*.pre-*
+
+backups/
+state/backups/
+logs/
+.cache/
+cache/
+tmp/
+node_modules/
+
+# Cairo Dock fue retirado en V6
+config/cairo-dock/
+
+# Chromium private/runtime state
+SingletonLock
+SingletonSocket
+SingletonCookie
+Cookies
+Cookies-journal
+Login Data
+Login Data-journal
+
+# Credentials
+*.pem
+*.key
+id_rsa
+id_ed25519

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Icon=org.gnome.Nautilus
+Type=X-XFCE-Helper
+Name=Nautilus
+StartupNotify=true
+X-XFCE-Binaries=macdesk-nautilus;
+X-XFCE-Category=FileManager
+X-XFCE-Commands=/usr/local/bin/macdesk-nautilus;
+X-XFCE-CommandsWithParameter=/usr/local/bin/macdesk-nautilus "%s";

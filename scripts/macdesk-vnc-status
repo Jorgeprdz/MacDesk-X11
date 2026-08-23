@@ -1,0 +1,83 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+. /data/data/com.termux/files/home/MacDesk-V6/scripts/macdesk-vnc-common
+
+display="$(vnc_detect_display 2>/dev/null || true)"
+if [ "$display" = "$VNC_EXPECTED_DISPLAY" ] && vnc_display_is_healthy "$display"; then
+  echo "DISPLAY=$display"
+  echo 'MACDESK=RUNNING'
+else
+  echo "DISPLAY=${display:-UNKNOWN}"
+  echo 'MACDESK=STOPPED_OR_UNHEALTHY'
+fi
+
+xfce_count="$(vnc_debian sh -lc 'pgrep -c -x xfce4-session' 2>/dev/null || echo 0)"
+xfwm_count="$(vnc_debian sh -lc 'pgrep -c -x xfwm4' 2>/dev/null || echo 0)"
+plank_count="$(vnc_debian sh -lc 'pgrep -c -x plank' 2>/dev/null || echo 0)"
+echo "XFCE_SESSION_COUNT=$xfce_count"
+echo "XFWM_COUNT=$xfwm_count"
+echo "PLANK_COUNT=$plank_count"
+[ "$xfce_count" = 1 ] && echo 'XFCE_EXISTING=PASS' || echo 'XFCE_EXISTING=FAIL'
+[ "$xfwm_count" = 1 ] && echo 'XFWM_EXISTING=PASS' || echo 'XFWM_EXISTING=FAIL'
+[ "$plank_count" = 1 ] && echo 'PLANK_EXISTING=PASS' || echo 'PLANK_EXISTING=FAIL'
+
+if vnc_password_is_ready; then
+  echo 'PASSWORD_FILE=PASS'
+  echo 'PASSWORD_MODE=0600'
+else
+  echo 'PASSWORD_FILE=FAIL'
+  echo 'PASSWORD_MODE=FAIL'
+fi
+
+pid="$(vnc_server_pid 2>/dev/null || true)"
+if [ -n "$pid" ] && vnc_listener_is_exact; then
+  echo 'VNC_PROCESS=PASS'
+  echo "VNC_PID=$pid"
+  echo 'VNC_INTERNAL_PORT=PASS'
+  echo 'TAILSCALE_BIND=PASS'
+  echo 'LAN_WILDCARD=NO'
+  ready=1
+else
+  echo 'VNC_PROCESS=FAIL'
+  echo 'VNC_PID=NONE'
+  echo 'VNC_INTERNAL_PORT=FAIL'
+  echo 'TAILSCALE_BIND=FAIL'
+  if vnc_adb_ready && printf '%s\n' "$(vnc_listener_lines 2>/dev/null)" | grep -qE '0\.0\.0\.0:5902|\[::\]:5902|\*:5902'; then
+    echo 'LAN_WILDCARD=YES'
+  else
+    echo 'LAN_WILDCARD=NO'
+  fi
+  ready=0
+fi
+
+if vnc_input_bridge_is_healthy "$VNC_WHATSAPP_BRIDGE_MARKER"; then
+  echo 'WHATSAPP_VNC_INPUT=PASS'
+  echo "WHATSAPP_VNC_INPUT_PID=$(vnc_find_bridge_pid node "$VNC_WHATSAPP_BRIDGE_MARKER")"
+else
+  echo 'WHATSAPP_VNC_INPUT=FAIL'
+  ready=0
+fi
+if vnc_input_bridge_is_healthy "$VNC_CHATGPT_BRIDGE_MARKER"; then
+  echo 'CHATGPT_VNC_INPUT=PASS'
+  echo "CHATGPT_VNC_INPUT_PID=$(vnc_find_bridge_pid node "$VNC_CHATGPT_BRIDGE_MARKER")"
+else
+  echo 'CHATGPT_VNC_INPUT=FAIL'
+  ready=0
+fi
+
+if vnc_second_x_server_absent; then
+  echo 'SECOND_X_SERVER_CREATED=NO'
+else
+  echo 'SECOND_X_SERVER_CREATED=YES'
+  ready=0
+fi
+[ "$xfce_count" = 1 ] && echo 'SECOND_XFCE_CREATED=NO' || {
+  echo 'SECOND_XFCE_CREATED=YES'
+  ready=0
+}
+
+echo "HOST=$VNC_HOST"
+echo "PORT=$VNC_PORT"
+echo 'SECURITY=VncAuth'
+echo 'EXPECTED_DESKTOP=SAME_EXISTING_MACDESK'
+[ "$ready" = 1 ] && echo 'READY_FOR_AVNC=YES' || echo 'READY_FOR_AVNC=NO'

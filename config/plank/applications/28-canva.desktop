@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Canva
+Comment=Canva standalone in isolated Firefox ESR
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/canva.svg
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-canva
+StartupWMClass=firefox-esr
+Terminal=false
+NoDisplay=true
+Categories=Graphics;Network;

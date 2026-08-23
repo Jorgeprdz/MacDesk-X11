@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MACDESK_FIREFOX_GPU=STARTING</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #10151d; color: white; font: 18px sans-serif; }
+  canvas { width: 100%; height: 100%; }
+  #status { position: fixed; inset: 24px auto auto 24px; padding: 14px 18px; border-radius: 12px; background: #000b; }
+</style>
+<canvas id="gpu"></canvas><div id="status">Starting WebGL…</div>
+<script>
+const canvas = document.querySelector('#gpu');
+const status = document.querySelector('#status');
+const gl = canvas.getContext('webgl2', { antialias: true }) || canvas.getContext('webgl');
+let frames = 0, previousFrames = 0, stalls = 0;
+let renderer = 'NO_WEBGL';
+if (gl) {
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  if (ext) renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+  else renderer = gl.getParameter(gl.RENDERER);
+}
+function render(now) {
+  if (!gl) return;
+  const scale = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.floor(innerWidth * scale));
+  const height = Math.max(1, Math.floor(innerHeight * scale));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width; canvas.height = height;
+    gl.viewport(0, 0, width, height);
+  }
+  gl.clearColor((Math.sin(now / 700) + 1) / 2, 0.18, (Math.cos(now / 900) + 1) / 3, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  frames++;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+setInterval(() => {
+  const delta = frames - previousFrames;
+  if (gl && delta < 5) stalls++;
+  previousFrames = frames;
+  const pass = gl && stalls === 0;
+  const summary = `MACDESK_FIREFOX_GPU=${pass ? 'PASS' : 'FAIL'};FRAMES=${frames};FPS=${delta};STALLS=${stalls};RENDERER=${renderer}`;
+  document.title = summary;
+  status.textContent = summary;
+}, 1000);
+</script>

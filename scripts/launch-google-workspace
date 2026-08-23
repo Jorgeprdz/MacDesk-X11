@@ -1,0 +1,74 @@
+#!/bin/sh
+set -eu
+
+. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh
+export MOZ_X11_EGL=0
+unset MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER ZINK_DESCRIPTORS VK_DRIVER_FILES VTEST_SOCKET_NAME LD_LIBRARY_PATH LIBGL_DRIVERS_PATH MESA_GL_VERSION_OVERRIDE
+
+app="${1:-}"
+[ "$#" -eq 0 ] || shift
+case "$app" in
+  docs)
+    profile=/root/.config/macdesk-google-docs-chromium
+    app_class=MacDeskGoogleDocs
+    debug_port=9227
+    url=https://docs.google.com/document/u/0/
+    lock=/tmp/macdesk-google-docs-input-bridge.lock
+    log=google-docs-input-bridge.log
+    ;;
+  sheets)
+    profile=/root/.config/macdesk-google-sheets-chromium
+    app_class=MacDeskGoogleSheets
+    debug_port=9228
+    url=https://docs.google.com/spreadsheets/u/0/
+    lock=/tmp/macdesk-google-sheets-input-bridge.lock
+    log=google-sheets-input-bridge.log
+    ;;
+  *)
+    printf 'Usage: %s {docs|sheets}\n' "$0" >&2
+    exit 2
+    ;;
+esac
+
+base=/data/data/com.termux/files/home/MacDesk-V6
+mkdir -p "$profile" "$base/logs"
+chmod 700 "$profile"
+
+# Reuse this app's isolated main Chromium process and visible app window.
+for proc in /proc/[0-9]*/cmdline; do
+  [ -r "$proc" ] || continue
+  cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+  case "$cmd" in
+    *"--user-data-dir=$profile"*)
+      case "$cmd" in *--type=*) continue ;; esac
+      window="$(xdotool search --onlyvisible --class "$app_class" 2>/dev/null | head -1 || true)"
+      [ -z "$window" ] || xdotool windowactivate "$window" >/dev/null 2>&1 || true
+      exit 0
+      ;;
+  esac
+done
+
+chromium --no-sandbox --no-first-run --no-default-browser-check \
+  --password-store=basic \
+  --ozone-platform=x11 --disable-gpu --disable-gpu-compositing --disable-gpu-rasterization \
+  --disable-features=XInput2KeyEvents,UseChromeOSDirectVideoDecoder \
+  --remote-debugging-address=127.0.0.1 --remote-debugging-port="$debug_port" \
+  --user-data-dir="$profile" --class="$app_class" --app="$url" "$@" &
+browser_pid=$!
+
+MACDESK_CHROMIUM_DEBUG_PORT="$debug_port" \
+MACDESK_CHROMIUM_TARGET_HOSTS='*' \
+MACDESK_RESPONSIVE_MIN_WIDTH=748 \
+MACDESK_WINDOW_CLASS="$app_class" \
+flock -F -n "$lock" \
+  /data/data/com.termux/files/usr/bin/node "$base/scripts/chromium-input-bridge.mjs" \
+  >>"$base/logs/$log" 2>&1 &
+bridge_pid=$!
+
+trap 'kill "$browser_pid" "$bridge_pid" 2>/dev/null || true' INT TERM EXIT
+wait "$browser_pid"
+status=$?
+kill "$bridge_pid" 2>/dev/null || true
+wait "$bridge_pid" 2>/dev/null || true
+trap - INT TERM EXIT
+exit "$status"

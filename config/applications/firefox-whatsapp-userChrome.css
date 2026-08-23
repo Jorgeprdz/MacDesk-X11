@@ -1,0 +1,10 @@
+/* The dedicated profile is a single-site app window. */
+#TabsToolbar,
+#nav-bar,
+#PersonalToolbar {
+  visibility: collapse !important;
+}
+
+#navigator-toolbox {
+  min-height: 0 !important;
+}

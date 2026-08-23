@@ -1,0 +1,36 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="$HOME/MacDesk-V6"
+. "$BASE/scripts/lib/android-x11.sh"
+
+if x11_uids_are_isolated; then
+  termux_pid_before="$(x11_android_pid com.termux || true)"
+  [ -n "$termux_pid_before" ] || {
+    echo 'TERMUX_PID_BEFORE=UNKNOWN'
+    exit 1
+  }
+  "$BASE/scripts/macdesk-stop"
+  "$ADB" shell am force-stop --user 0 com.termux.x11
+  sleep 1
+  termux_pid_after="$(x11_android_pid com.termux || true)"
+  if [ "$termux_pid_after" != "$termux_pid_before" ]; then
+    echo "TERMUX_PID_BEFORE=$termux_pid_before"
+    echo "TERMUX_PID_AFTER=${termux_pid_after:-MISSING}"
+    echo 'TERMUX_SURVIVES_X11_FORCE_STOP=FAIL'
+    exit 1
+  fi
+  echo 'TERMUX_X11_RESTART=ANDROID_PACKAGE_LEVEL'
+  echo 'TERMUX_SURVIVES_X11_FORCE_STOP=PASS'
+  x11_focus_activity
+  sleep 1
+  exec "$BASE/scripts/macdesk"
+fi
+
+# Until the standalone migration is complete a package force-stop would also
+# terminate Termux.  Retain the safe process-level restart as the fallback.
+echo 'TERMUX_X11_RESTART=SAFE_PROCESS_LEVEL'
+echo 'ANDROID_FORCE_STOP=BLOCKED_SHARED_UID'
+
+"$BASE/scripts/macdesk-stop"
+exec "$BASE/scripts/macdesk"

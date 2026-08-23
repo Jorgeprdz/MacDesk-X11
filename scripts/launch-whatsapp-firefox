@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh
+export MOZ_X11_EGL=0
+unset MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER ZINK_DESCRIPTORS VK_DRIVER_FILES VTEST_SOCKET_NAME LD_LIBRARY_PATH LIBGL_DRIVERS_PATH MESA_GL_VERSION_OVERRIDE
+
+base=/data/data/com.termux/files/home/MacDesk-V6
+profile=/root/.config/firefox-whatsapp-macdesk
+mkdir -p "$profile/chrome"
+cp "$base/config/applications/firefox-whatsapp-user.js" "$profile/user.js"
+cp "$base/config/applications/firefox-whatsapp-userChrome.css" "$profile/chrome/userChrome.css"
+
+for proc in /proc/[0-9]*/cmdline; do
+  [ -r "$proc" ] || continue
+  cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+  case "$cmd" in
+    *firefox-esr*"--profile $profile"*)
+      window="$(xdotool search --onlyvisible --name 'WhatsApp' 2>/dev/null | tail -1 || true)"
+      [ -z "$window" ] || xdotool windowactivate "$window" >/dev/null 2>&1 || true
+      exit 0
+      ;;
+  esac
+done
+
+exec firefox-esr --no-remote --new-instance --profile "$profile" \
+  --new-window https://web.whatsapp.com "$@"

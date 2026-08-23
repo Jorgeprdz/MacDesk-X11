@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh
+export MOZ_X11_EGL=0
+unset MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER ZINK_DESCRIPTORS VK_DRIVER_FILES VTEST_SOCKET_NAME LD_LIBRARY_PATH LIBGL_DRIVERS_PATH MESA_GL_VERSION_OVERRIDE
+
+profile=/root/.config/chromium-macdesk-v6
+mkdir -p "$profile"
+exec chromium --no-sandbox --ozone-platform=x11 --enable-gpu-rasterization --enable-zero-copy --enable-oop-rasterization --disable-features=UseChromeOSDirectVideoDecoder --user-data-dir="$profile" --class=Chromium "$@"

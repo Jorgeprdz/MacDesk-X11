@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Configurar Plank
+Comment=Preferencias visuales y de comportamiento del dock
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-plank-preferences
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/preferences-system.svg
+Terminal=false
+StartupNotify=true
+Categories=Settings;DesktopSettings;

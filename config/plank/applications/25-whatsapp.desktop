@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=WhatsApp Web
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/whatsapp.svg
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-whatsapp
+StartupWMClass=MacDeskWhatsApp
+Terminal=false
+NoDisplay=true

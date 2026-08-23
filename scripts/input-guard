@@ -1,0 +1,64 @@
+#!/bin/sh
+set -u
+
+export DISPLAY="${DISPLAY:-:2}"
+
+lock_dir=/tmp/macdesk-input-guard.lock
+if ! mkdir "$lock_dir" 2>/dev/null; then
+  # Android can kill the whole shared Termux UID without running EXIT traps.
+  # Reclaim an empty lock left by that abrupt exit; retain a populated lock
+  # owned by a live guard so duplicate sessions cannot race keyboard resets.
+  old_pid="$(sed -n '1p' "$lock_dir/pid" 2>/dev/null || true)"
+  case "$old_pid" in
+    ''|*[!0-9]*) old_pid='' ;;
+  esac
+  if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+    exit 0
+  fi
+  rm -f "$lock_dir/pid"
+  rmdir "$lock_dir" 2>/dev/null || exit 0
+  mkdir "$lock_dir" 2>/dev/null || exit 0
+fi
+echo "$$" > "$lock_dir/pid"
+cleanup() {
+  rm -f "$lock_dir/pid"
+  rmdir "$lock_dir" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+
+reset_lorie_input() {
+  keyboard_id="$(xinput list --id-only 'Lorie keyboard' 2>/dev/null | head -1)"
+  case "$keyboard_id" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  # A mismatched Android release can leave X11 holding a key indefinitely.
+  # Reset the Lorie device before querying or changing the blocked XKB map.
+  xinput disable "$keyboard_id" 2>/dev/null || true
+  sleep .15
+  xinput enable "$keyboard_id" 2>/dev/null || true
+  # Keep Super neutralized without enabling accessibility interception.
+  xmodmap -e 'keycode 133 = Super_L' -e 'keycode 134 = Super_R' 2>/dev/null || true
+  xdotool keyup Super_L keyup Super_R 2>/dev/null || true
+  # Preferred-scancode mode carries both transitions of the remapped physical
+  # Alt key as keycode 64. Map that paired key to the requested Control role.
+  xmodmap -e 'keycode 64 = Alt_L' 2>/dev/null || true
+  xdotool keyup Alt_L 2>/dev/null || true
+  xmodmap -e 'clear mod4' -e 'keycode 133 = NoSymbol' -e 'keycode 134 = NoSymbol' -e 'remove mod1 = Alt_L' -e 'keycode 64 = Control_L' -e 'add control = Control_L' -e 'add mod1 = Alt_L' 2>/dev/null || true
+}
+# xfsettingsd applies XKB after session-start, so enforce the safe contract
+# once the desktop has settled and repair it after DeX/XKB resets.
+sleep 3
+reset_lorie_input
+while :; do
+  sleep .25
+  keyboard_id="$(xinput list --id-only 'Lorie keyboard' 2>/dev/null | head -1)"
+  key_state="$(xinput query-state "$keyboard_id" 2>/dev/null || true)"
+  if echo "$key_state" | grep -Fq 'key[133]=down' || echo "$key_state" | grep -Fq 'key[134]=down'; then
+    reset_lorie_input
+    continue
+  fi
+  if xmodmap -pm 2>/dev/null | awk '$1 == "mod4" && NF > 1 { found=1 } END { exit !found }' || xmodmap -pk 2>/dev/null | grep -Eq '^[[:space:]]*(133|134)[[:space:]].*Super_[LR]' || ! xmodmap -pke 2>/dev/null | grep -Eq '^keycode[[:space:]]+64[[:space:]]*=[[:space:]]*Control_L'; then
+    reset_lorie_input
+  fi
+done

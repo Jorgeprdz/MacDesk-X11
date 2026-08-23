@@ -1,0 +1,102 @@
+#!/bin/sh
+set -u
+
+export DISPLAY="${DISPLAY:-:2}"
+
+BASE=/data/data/com.termux/files/home/MacDesk-V6
+SCHEMA=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
+RUNTIME_LOG="$BASE/logs/plank-runtime.log"
+
+root_geometry() {
+  info="$(timeout 2 xwininfo -root 2>/dev/null)" || return 1
+  width="$(printf '%s\n' "$info" | sed -n 's/^  Width: \([0-9][0-9]*\)$/\1/p')"
+  height="$(printf '%s\n' "$info" | sed -n 's/^  Height: \([0-9][0-9]*\)$/\1/p')"
+  [ -n "$width" ] && [ -n "$height" ] || return 1
+  printf '%s %s\n' "$width" "$height"
+}
+
+dock_geometry() {
+  for window in $(timeout 2 xdotool search --class plank 2>/dev/null); do
+    timeout 2 xprop -id "$window" _NET_WM_WINDOW_TYPE 2>/dev/null \
+      | grep -q '_NET_WM_WINDOW_TYPE_DOCK' || continue
+    geometry="$(timeout 2 xdotool getwindowgeometry --shell "$window" 2>/dev/null)" || continue
+    x="$(printf '%s\n' "$geometry" | sed -n 's/^X=//p')"
+    y="$(printf '%s\n' "$geometry" | sed -n 's/^Y=//p')"
+    width="$(printf '%s\n' "$geometry" | sed -n 's/^WIDTH=//p')"
+    height="$(printf '%s\n' "$geometry" | sed -n 's/^HEIGHT=//p')"
+    [ -n "$x" ] && [ -n "$y" ] && [ -n "$width" ] && [ -n "$height" ] || continue
+    printf '%s %s %s %s\n' "$x" "$y" "$width" "$height"
+    return 0
+  done
+  return 1
+}
+
+restart_plank() {
+  old_pids="$(pgrep -x plank 2>/dev/null || true)"
+  [ -z "$old_pids" ] || kill -TERM $old_pids 2>/dev/null || true
+  attempts=0
+  while pgrep -x plank >/dev/null 2>&1 && [ "$attempts" -lt 20 ]; do
+    attempts=$((attempts + 1))
+    sleep .1
+  done
+  # Plank gets a short dedicated session bus so it can always read the saved
+  # dconf state even if the long-lived XFCE session bus has gone stale.
+  dbus-run-session -- plank --name dock1 >>"$RUNTIME_LOG" 2>&1 &
+  printf '%s geometry=%s dock=%s action=restart\n' \
+    "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$1" "$2" >>"$RUNTIME_LOG"
+}
+
+last_root=''
+stable_polls=0
+mismatch_polls=0
+
+while :; do
+  root="$(root_geometry || true)"
+  if [ -z "$root" ]; then
+    stable_polls=0
+    mismatch_polls=0
+    sleep .5
+    continue
+  fi
+
+  if [ "$root" = "$last_root" ]; then
+    stable_polls=$((stable_polls + 1))
+  else
+    last_root="$root"
+    stable_polls=0
+    mismatch_polls=0
+  fi
+
+  position="$(gsettings get "$SCHEMA" position 2>/dev/null || true)"
+  dock="$(dock_geometry || true)"
+  if [ "$position" = "'bottom'" ] && [ -n "$dock" ]; then
+    set -- $root
+    root_width=$1
+    root_height=$2
+    set -- $dock
+    dock_x=$1
+    dock_y=$2
+    dock_width=$3
+    dock_height=$4
+    dock_bottom=$((dock_y + dock_height))
+    if [ "$dock_x" -ne 0 ] || [ "$dock_width" -ne "$root_width" ] \
+      || [ "$dock_bottom" -ne "$root_height" ]; then
+      mismatch_polls=$((mismatch_polls + 1))
+    else
+      mismatch_polls=0
+    fi
+  else
+    mismatch_polls=0
+  fi
+
+  # Two stable geometry samples plus two mismatched dock samples debounce the
+  # rapid sequence of intermediate sizes emitted while a DeX window resizes.
+  if [ "$stable_polls" -ge 2 ] && [ "$mismatch_polls" -ge 2 ]; then
+    restart_plank "$(printf '%sx%s' $root)" "$(printf '%s,%s,%sx%s' $dock)"
+    stable_polls=0
+    mismatch_polls=0
+    sleep 1
+  else
+    sleep .5
+  fi
+done

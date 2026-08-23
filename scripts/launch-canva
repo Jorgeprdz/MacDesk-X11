@@ -1,0 +1,91 @@
+#!/bin/sh
+set -eu
+
+. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh
+
+base=/data/data/com.termux/files/home/MacDesk-V6
+profile=/root/.config/macdesk-canva-firefox
+prefs="$base/config/applications/canva-firefox-user.js"
+user_chrome="$base/config/applications/canva-firefox-userChrome.css"
+lock=/tmp/macdesk-canva-firefox-launch.lock
+
+export MOZ_ENABLE_WAYLAND=0
+export MOZ_X11_EGL=0
+export MOZ_GTK_TITLEBAR_DECORATION=system
+export NO_AT_BRIDGE=1
+# The current MacDesk session can outlive its original session bus. Canva does
+# not need that bus; failing fast is safer than blocking Firefox on a stale
+# accessibility/portal proxy.
+unset DBUS_SESSION_BUS_ADDRESS
+unset MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER ZINK_DESCRIPTORS VK_DRIVER_FILES VTEST_SOCKET_NAME LD_LIBRARY_PATH LIBGL_DRIVERS_PATH MESA_GL_VERSION_OVERRIDE
+
+find_canva_pid() {
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    first="$(tr '\0' '\n' < "$proc" 2>/dev/null | head -1 || true)"
+    case "$first" in
+      firefox|firefox-esr|*/firefox|*/firefox-esr) ;;
+      *) continue ;;
+    esac
+    cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+    case "$cmd" in
+      *"--profile $profile"*)
+        case "$cmd" in *' -contentproc '*) continue ;; esac
+        pid="${proc#/proc/}"
+        printf '%s\n' "${pid%/cmdline}"
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+activate_canva() {
+  pid="$1"
+  for window in $(xdotool search --pid "$pid" 2>/dev/null || true); do
+    geometry="$(xdotool getwindowgeometry --shell "$window" 2>/dev/null || true)"
+    case "$geometry" in *'WIDTH=1'*|*'HEIGHT=1'*) continue ;; esac
+    xdotool windowactivate "$window" >/dev/null 2>&1 || true
+    return 0
+  done
+  return 1
+}
+
+existing="$(find_canva_pid || true)"
+if [ -n "$existing" ]; then
+  activate_canva "$existing" || true
+  exit 0
+fi
+
+exec 9>"$lock"
+if ! flock -n 9; then
+  attempts=0
+  while [ "$attempts" -lt 20 ]; do
+    existing="$(find_canva_pid || true)"
+    if [ -n "$existing" ]; then
+      activate_canva "$existing" || true
+      exit 0
+    fi
+    sleep 0.25
+    attempts=$((attempts + 1))
+  done
+  exit 1
+fi
+
+existing="$(find_canva_pid || true)"
+if [ -n "$existing" ]; then
+  activate_canva "$existing" || true
+  exit 0
+fi
+
+umask 077
+mkdir -p "$profile/chrome" "$base/logs"
+install -m 600 "$prefs" "$profile/user.js"
+install -m 600 "$user_chrome" "$profile/chrome/userChrome.css"
+
+# Release the startup lock before Firefox replaces this process. The second
+# launch will find and focus this exact profile instead of allocating a copy.
+flock -u 9
+exec 9>&-
+exec firefox-esr --no-remote --profile "$profile" --new-window 'https://www.canva.com/?continue_in_browser=true' "$@" \
+  >>"$base/logs/canva-firefox.log" 2>&1

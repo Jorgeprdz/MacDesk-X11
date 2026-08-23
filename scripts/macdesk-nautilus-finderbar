@@ -1,0 +1,103 @@
+#!/bin/sh
+set -eu
+
+PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+VERSION=48.3
+PATCH_VERSION=2
+PREFIX=/opt/macdesk-nautilus-finderbar
+PAYLOAD="$PROJECT_ROOT/assets/nautilus-finderbar/$VERSION"
+BINARY_SHA256=ee5f3f5d27abd5e4feaa65b47b8c2de34fd7e940c9cb095d363c1e0f1fab7521
+
+usage()
+{
+    echo "usage: $0 install|remove|status"
+    exit 2
+}
+
+status()
+{
+    if [ -x "$PREFIX/bin/nautilus" ] &&
+       [ -f "$PREFIX/.macdesk-installed" ] &&
+       printf '%s  %s\n' "$BINARY_SHA256" "$PREFIX/bin/nautilus" | sha256sum -c - >/dev/null 2>&1; then
+        echo "FINDERBAR=INSTALLED"
+        echo "UPSTREAM_NAUTILUS_VERSION=$VERSION"
+        echo "PATCH_VERSION=$PATCH_VERSION"
+        echo "PRIVATE_BINARY=$PREFIX/bin/nautilus"
+        echo "SYSTEM_NAUTILUS=/usr/bin/nautilus"
+        echo "ROLLBACK=READY"
+        return 0
+    fi
+
+    echo "FINDERBAR=NOT_INSTALLED"
+    echo "SYSTEM_NAUTILUS=/usr/bin/nautilus"
+    return 1
+}
+
+install_module()
+{
+    source_binary="$PAYLOAD/bin/nautilus"
+    test -x "$source_binary" || {
+        echo "ERROR=missing private Nautilus payload" >&2
+        exit 1
+    }
+    printf '%s  %s\n' "$BINARY_SHA256" "$source_binary" | sha256sum -c - >/dev/null
+
+    install -d -m 0755 "$PREFIX/bin"
+    install -d -m 0755 "$PREFIX/share/locale/es/LC_MESSAGES"
+    install -d -m 0755 "$PREFIX/share/nautilus/ontology"
+    install -d -m 0755 "$PREFIX/lib/aarch64-linux-gnu/nautilus/extensions-4"
+    install -m 0755 "$source_binary" "$PREFIX/bin/nautilus"
+    install -m 0644 "$PAYLOAD/share/locale/es/LC_MESSAGES/nautilus.mo" \
+        "$PREFIX/share/locale/es/LC_MESSAGES/nautilus.mo"
+    install -m 0644 "$PAYLOAD/share/nautilus/ontology/nautilus.description" \
+        "$PREFIX/share/nautilus/ontology/nautilus.description"
+    install -m 0644 "$PAYLOAD/share/nautilus/ontology/nautilus.ontology" \
+        "$PREFIX/share/nautilus/ontology/nautilus.ontology"
+
+    for extension in /usr/lib/aarch64-linux-gnu/nautilus/extensions-4/*.so; do
+        [ -e "$extension" ] || continue
+        target="$PREFIX/lib/aarch64-linux-gnu/nautilus/extensions-4/${extension##*/}"
+        if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+            ln -s "$extension" "$target"
+        fi
+    done
+
+    printf 'UPSTREAM_NAUTILUS_VERSION=%s\nPATCH_VERSION=%s\n' \
+        "$VERSION" "$PATCH_VERSION" > "$PREFIX/.macdesk-installed"
+    chmod 0644 "$PREFIX/.macdesk-installed"
+    status
+}
+
+remove_module()
+{
+    case "$PREFIX" in
+        /opt/macdesk-nautilus-finderbar) ;;
+        *) echo "ERROR=unsafe prefix" >&2; exit 1 ;;
+    esac
+
+    if [ ! -d "$PREFIX" ]; then
+        echo "FINDERBAR=NOT_INSTALLED"
+        echo "ROLLBACK=PASS"
+        return 0
+    fi
+
+    find "$PREFIX" -type l -delete
+    find "$PREFIX" -type f -delete
+    find "$PREFIX" -depth -type d -empty -delete
+    if [ -e "$PREFIX" ]; then
+        echo "ERROR=private prefix contains unexpected files" >&2
+        exit 1
+    fi
+
+    test -x /usr/bin/nautilus
+    echo "FINDERBAR=REMOVED"
+    echo "SYSTEM_NAUTILUS=/usr/bin/nautilus"
+    echo "ROLLBACK=PASS"
+}
+
+case "${1:-}" in
+    install) install_module ;;
+    remove) remove_module ;;
+    status) status ;;
+    *) usage ;;
+esac

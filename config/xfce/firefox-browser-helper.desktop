@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Icon=firefox
+Type=X-XFCE-Helper
+Name=Firefox
+StartupNotify=true
+X-XFCE-Binaries=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-firefox;
+X-XFCE-Category=WebBrowser
+X-XFCE-Commands=%B;
+X-XFCE-CommandsWithParameter=%B "%s";

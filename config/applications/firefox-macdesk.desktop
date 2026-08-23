@@ -1,0 +1,21 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Firefox
+Comment=MacDesk web browser accelerated by Adreno
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-firefox %u
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/firefox.svg
+Terminal=false
+StartupNotify=true
+StartupWMClass=firefox-esr
+Categories=Network;WebBrowser;
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+Actions=new-window;private-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-firefox --new-window
+
+[Desktop Action private-window]
+Name=New Private Window
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-firefox --private-window

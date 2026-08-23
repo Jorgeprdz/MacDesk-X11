@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Mailspring
+Comment=Email
+Exec=/usr/local/bin/mailspring-macdesk
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/mailspring.svg
+Terminal=false
+StartupNotify=true
+StartupWMClass=Mailspring
+Categories=Network;Email;

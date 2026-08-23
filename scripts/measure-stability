@@ -1,0 +1,45 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+
+BASE="$HOME/MacDesk-V6"
+stamp="$(date +%Y%m%d-%H%M%S)"
+out="$BASE/logs/stability-$stamp.txt"
+
+proot-distro login debian --shared-tmp -- sh -lc '
+sum_rss() {
+  pattern="$1"
+  total=0
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr "\\0" " " < "$proc" 2>/dev/null || true)"
+    case "$cmd" in
+      *"$pattern"*)
+        # The proot wrapper contains this inline probe text; it is not a web
+        # process and must not be counted as Firefox/WhatsApp RSS.
+        case "$cmd" in *"sum_rss()"*) continue;; esac
+        rss="$(awk "/^VmRSS:/ {print \\$2}" "${proc%/cmdline}/status" 2>/dev/null)"
+        total=$((total + ${rss:-0}))
+        ;;
+    esac
+  done
+  echo "$total"
+}
+echo "FIREFOX_MAIN_RSS_KIB=$(sum_rss /usr/lib/firefox-esr/firefox-esr)"
+echo "WHATSAPP_RSS_KIB=$(sum_rss /root/.config/macdesk-whatsapp-chromium)"
+echo "DESKTOP_RSS_KIB=$(ps -eo rss=,comm= | awk '\''$2 ~ /^(xfce4-session|xfwm4|xfce4-panel|xfdesktop|plank)$/ {sum += $1} END {print sum + 0}'\'')"
+echo "PROCESS_COUNT=$(ps -e --no-headers | wc -l)"
+free -k
+cat /proc/pressure/memory 2>/dev/null || true
+' > "$out"
+
+{
+  echo
+  echo 'ANDROID_APPLICATION_EXIT_INFO_TERMUX'
+  adb shell dumpsys activity exit-info com.termux 2>/dev/null | head -120
+  echo
+  echo 'ANDROID_APPLICATION_EXIT_INFO_X11'
+  adb shell dumpsys activity exit-info com.termux.x11 2>/dev/null | head -120
+} >> "$out"
+
+cat "$out"
+echo "STABILITY_REPORT=$out"

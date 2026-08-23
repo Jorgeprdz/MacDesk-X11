@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Papelera
+Comment=Abrir la papelera
+Exec=/usr/local/bin/macdesk-nautilus trash:///
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/places/scalable/user-trash.svg
+Terminal=false
+StartupNotify=true
+StartupWMClass=org.gnome.Nautilus
+Categories=System;FileManager;

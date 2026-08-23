@@ -1,0 +1,56 @@
+#!/bin/sh
+set -eu
+
+dock_pid=''
+for comm in /proc/[0-9]*/comm; do
+  [ -r "$comm" ] || continue
+  [ "$(cat "$comm" 2>/dev/null || true)" = plank ] || continue
+  pid="${comm#/proc/}"
+  pid="${pid%/comm}"
+  cmd="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
+  case "$cmd" in
+    *'plank --name dock1'*) dock_pid="$pid"; break ;;
+  esac
+done
+
+if [ -z "$dock_pid" ]; then
+  command -v notify-send >/dev/null 2>&1 && \
+    notify-send 'Configurar Plank' 'Plank no está ejecutándose.'
+  exit 1
+fi
+
+bus="$(tr '\0' '\n' < "/proc/$dock_pid/environ" 2>/dev/null |
+  sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' | head -1)"
+if [ -z "$bus" ]; then
+  command -v notify-send >/dev/null 2>&1 && \
+    notify-send 'Configurar Plank' 'No se encontró el bus de configuración de Plank.'
+  exit 1
+fi
+
+export DBUS_SESSION_BUS_ADDRESS="$bus"
+export XDG_CURRENT_DESKTOP=XFCE
+export XDG_SESSION_DESKTOP=xfce
+export XDG_SESSION_TYPE=x11
+
+if timeout 2 dbus-send --session --type=method_call --print-reply \
+  --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames \
+  >/dev/null 2>&1; then
+  exec plank --name dock1 --preferences
+fi
+
+# A long-running Android/PRoot session can outlive its original D-Bus socket.
+# In that case, stop only the validated Plank PID and reopen the same dock with
+# its native preferences dialog on a fresh private bus.
+kill -TERM "$dock_pid"
+attempts=0
+while kill -0 "$dock_pid" 2>/dev/null && [ "$attempts" -lt 30 ]; do
+  attempts=$((attempts + 1))
+  sleep .1
+done
+if kill -0 "$dock_pid" 2>/dev/null; then
+  command -v notify-send >/dev/null 2>&1 && \
+    notify-send 'Configurar Plank' 'No fue posible reiniciar Plank de forma segura.'
+  exit 1
+fi
+
+exec dbus-run-session -- plank --name dock1 --preferences

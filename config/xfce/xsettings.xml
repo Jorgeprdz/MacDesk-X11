@@ -1,0 +1,18 @@
+<?xml version="1.1" encoding="UTF-8"?>
+<channel name="xsettings" version="1.0">
+  <property name="Net" type="empty">
+    <property name="ThemeName" type="string" value="GoldenGate-Light"/>
+    <property name="IconThemeName" type="string" value="WhiteSur-MacDesk"/>
+  </property>
+  <property name="Xft" type="empty">
+    <property name="Antialias" type="int" value="1"/>
+    <property name="Hinting" type="int" value="1"/>
+    <property name="HintStyle" type="string" value="hintslight"/>
+    <property name="RGBA" type="string" value="rgb"/>
+  </property>
+  <property name="Gtk" type="empty">
+    <property name="FontName" type="string" value="Sans 10"/>
+    <property name="MonospaceFontName" type="string" value="Monospace 10"/>
+    <property name="DecorationLayout" type="string" value="close,minimize,maximize:"/>
+  </property>
+</channel>

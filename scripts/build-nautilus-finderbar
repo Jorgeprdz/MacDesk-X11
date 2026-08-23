@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+PATCH_FILE="$PROJECT_ROOT/patches/nautilus/nautilus-48.3-finderbar-v2.patch"
+SOURCE_LIST="$PROJECT_ROOT/config/build/debian-source.sources"
+WORK_DIR=${MACDESK_NAUTILUS_BUILD_DIR:-/tmp/macdesk-nautilus-finderbar-build}
+
+test -f "$PATCH_FILE"
+test -f "$SOURCE_LIST"
+mkdir -p "$WORK_DIR/lists/partial"
+cd "$WORK_DIR"
+
+apt-get update \
+    -o Dir::Etc::sourcelist="$SOURCE_LIST" \
+    -o Dir::Etc::sourceparts=- \
+    -o Dir::State::lists="$WORK_DIR/lists"
+
+apt-get source nautilus=48.3-2 \
+    -o Dir::Etc::sourcelist="$SOURCE_LIST" \
+    -o Dir::Etc::sourceparts=- \
+    -o Dir::State::lists="$WORK_DIR/lists"
+cd nautilus-48.3
+patch -p1 < "$PATCH_FILE"
+meson setup build --prefix=/opt/macdesk-nautilus-finderbar \
+    -Dextensions=false -Dintrospection=false -Ddocs=false -Dtests=none \
+    -Dpackagekit=false -Dcloudproviders=false -Dselinux=false
+ninja -C build
+
+echo "BUILD=PASS"
+echo "BINARY=$WORK_DIR/nautilus-48.3/build/src/nautilus"

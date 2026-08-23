@@ -1,0 +1,55 @@
+#!/bin/sh
+set -eu
+
+# Nautilus 48 deliberately sleeps seven seconds when UID 0. Debian PRoot must
+# use UID 0 for a coherent session bus, so skip only that exact intentional
+# delay while retaining all normal sleeps and the known-good GPU/D-Bus path.
+export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
+export LANG="${LANG:-es_MX.UTF-8}"
+export LC_ALL="${LC_ALL:-$LANG}"
+export LD_PRELOAD="/usr/local/lib/macdesk-nautilus-skip-root-delay.so${LD_PRELOAD:+:$LD_PRELOAD}"
+# GTK4 virpipe currently submits commands rejected by the Android virgl server.
+# Use the stable Cairo path for Nautilus so renderer failures cannot create an
+# X11 reconnect storm and exhaust Termux:X11 Binder/JNI references.
+export GSK_RENDERER=cairo
+export GDK_DISABLE=gl,vulkan
+# Do not inherit MacDesk custom Mesa/virpipe variables in this process.
+unset LD_LIBRARY_PATH LIBGL_DRIVERS_PATH GALLIUM_DRIVER MESA_GL_VERSION_OVERRIDE VTEST_SOCKET_NAME
+export LIBGL_ALWAYS_SOFTWARE=true
+export GTK_A11Y=none
+
+# libgnome-desktop 44 always launches thumbnailers through bubblewrap. PRoot's
+# virtual /tmp cannot be used as a kernel-visible bwrap bind source, so every
+# otherwise-valid thumbnailer is recorded as failed. Upstream deliberately
+# disables this nested sandbox for Snap; use the same per-process escape path
+# in MacDesk's already-contained Debian PRoot. This affects only Nautilus and
+# restores the normal event-driven thumbnail factory without changing any
+# system library or thumbnailer definition.
+export SNAP_NAME="${SNAP_NAME:-macdesk-proot}"
+
+# A long-running Android PRoot session can leave XFCE and X11 healthy while
+# its original D-Bus socket closes every new client. Nautilus otherwise opens
+# incompletely and GNOME Sushi never receives Space. Preserve the normal XFCE
+# bus whenever it answers; isolate only this application when it does not.
+if [ "${MACDESK_NAUTILUS_PRIVATE_BUS:-0}" != 1 ] && \
+   { [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] || \
+     ! gdbus call --session \
+         --dest org.freedesktop.DBus \
+         --object-path /org/freedesktop/DBus \
+         --method org.freedesktop.DBus.ListNames >/dev/null 2>&1; }; then
+    export MACDESK_NAUTILUS_PRIVATE_BUS=1
+    exec dbus-run-session -- "$0" "$@"
+fi
+
+# Finder-style bottom bar is shipped as a private, reproducible MacDesk
+# module. The Debian Nautilus stays untouched and remains the automatic
+# fallback when the module is removed or incomplete.
+NAUTILUS_FINDER_PREFIX=/opt/macdesk-nautilus-finderbar
+if [ -x "$NAUTILUS_FINDER_PREFIX/bin/nautilus" ] &&
+   [ -f "$NAUTILUS_FINDER_PREFIX/.macdesk-installed" ]; then
+    NAUTILUS_BIN="$NAUTILUS_FINDER_PREFIX/bin/nautilus"
+else
+    NAUTILUS_BIN=/usr/bin/nautilus
+fi
+
+exec "$NAUTILUS_BIN" "$@"

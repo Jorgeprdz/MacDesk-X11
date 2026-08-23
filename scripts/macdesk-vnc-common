@@ -1,0 +1,362 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+VNC_BASE=/data/data/com.termux/files/home/MacDesk-V6
+VNC_STATE_DIR="$VNC_BASE/state/vnc"
+VNC_LOG="$VNC_BASE/logs/macdesk-vnc.log"
+VNC_PID_FILE="$VNC_STATE_DIR/server.pid"
+VNC_LAUNCHER_PID_FILE="$VNC_STATE_DIR/launcher.pid"
+VNC_PASSWORD_FILE=/root/.vnc/passwd
+VNC_HOST=100.108.132.112
+VNC_PORT=5902
+VNC_EXPECTED_DISPLAY=:2
+VNC_XDG_RUNTIME_DIR=/tmp/runtime-macdesk-v6
+TERMUX_PREFIX=/data/data/com.termux/files/usr
+VNC_INPUT_BRIDGE_SCRIPT="$VNC_BASE/scripts/chromium-input-bridge.mjs"
+VNC_WHATSAPP_BRIDGE_MARKER=--macdesk-vnc-whatsapp-input-bridge
+VNC_CHATGPT_BRIDGE_MARKER=--macdesk-vnc-chatgpt-input-bridge
+VNC_WHATSAPP_BRIDGE_PID_FILE="$VNC_STATE_DIR/whatsapp-bridge-launcher.pid"
+VNC_CHATGPT_BRIDGE_PID_FILE="$VNC_STATE_DIR/chatgpt-bridge-launcher.pid"
+VNC_WHATSAPP_BRIDGE_LOG="$VNC_BASE/logs/whatsapp-vnc-input-bridge.log"
+VNC_CHATGPT_BRIDGE_LOG="$VNC_BASE/logs/chatgpt-vnc-input-bridge.log"
+
+vnc_error() {
+  printf 'ERROR=%s\n' "$*" >&2
+}
+
+vnc_debian() {
+  proot-distro login debian --shared-tmp -- "$@"
+}
+
+vnc_ensure_state() {
+  mkdir -p "$VNC_STATE_DIR" "$VNC_BASE/logs"
+  chmod 700 "$VNC_STATE_DIR"
+}
+
+vnc_detect_display() {
+  local proc cmd candidate found=''
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' 2>/dev/null <"$proc" || true)"
+    case "$cmd" in
+      *"termux-x11 com.termux.x11 :"*)
+        candidate="$(printf '%s\n' "$cmd" | sed -n 's/.*termux-x11 com\.termux\.x11 \(:[0-9][0-9]*\).*/\1/p')"
+        [ -n "$candidate" ] || continue
+        if [ -n "$found" ] && [ "$candidate" != "$found" ]; then
+          vnc_error "MULTIPLE_TERMUX_X11_DISPLAYS:$found,$candidate"
+          return 1
+        fi
+        found="$candidate"
+        ;;
+    esac
+  done
+  [ -n "$found" ] || {
+    vnc_error 'TERMUX_X11_DISPLAY_NOT_FOUND'
+    return 1
+  }
+  printf '%s\n' "$found"
+}
+
+vnc_display_is_healthy() {
+  local display="$1" number
+  number="${display#:}"
+  [ -S "$TERMUX_PREFIX/tmp/.X11-unix/X$number" ] || return 1
+  vnc_debian env DISPLAY="$display" XDG_RUNTIME_DIR="$VNC_XDG_RUNTIME_DIR" \
+    xprop -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1
+}
+
+vnc_desktop_stack_is_single() {
+  vnc_debian sh -lc \
+    '[ "$(pgrep -c -x xfce4-session)" = 1 ] && [ "$(pgrep -c -x xfwm4)" = 1 ] && [ "$(pgrep -c -x plank)" = 1 ]'
+}
+
+vnc_second_x_server_absent() {
+  vnc_debian sh -lc \
+    '! pgrep -x Xtigervnc >/dev/null && ! pgrep -x Xvnc >/dev/null && ! pgrep -x Xorg >/dev/null'
+}
+
+vnc_password_is_ready() {
+  vnc_debian sh -lc \
+    '[ -s /root/.vnc/passwd ] && [ "$(stat -c %a /root/.vnc/passwd)" = 600 ]'
+}
+
+vnc_tailscale_ip_is_present() {
+  node -e 'const os=require("os");const ip=process.argv[1];const a=os.networkInterfaces().tun0||[];process.exit(a.some(x=>x.family==="IPv4"&&x.address===ip)?0:1)' "$VNC_HOST"
+}
+
+vnc_adb_ready() {
+  command -v adb >/dev/null 2>&1 && adb get-state >/dev/null 2>&1
+}
+
+vnc_listener_lines() {
+  vnc_adb_ready || return 1
+  adb shell ss -ltn 2>/dev/null | tr -d '\r' | \
+    awk -v suffix=":$VNC_PORT" 'index($4,suffix) {print}'
+}
+
+vnc_port_is_free() {
+  local lines
+  lines="$(vnc_listener_lines)" || return 1
+  [ -z "$lines" ]
+}
+
+vnc_listener_is_exact() {
+  local lines expected
+  expected="$VNC_HOST:$VNC_PORT"
+  lines="$(vnc_listener_lines)" || return 1
+  [ "$(printf '%s\n' "$lines" | awk -v e="$expected" '$4==e {n++} END {print n+0}')" = 1 ] || return 1
+  [ "$(printf '%s\n' "$lines" | awk -v e="$expected" '$4!=e {n++} END {print n+0}')" = 0 ]
+}
+
+vnc_cmd_is_owned_server() {
+  local cmd="$1" first
+  first="${cmd%% *}"
+  [ "${first##*/}" = X0tigervnc ] || return 1
+  case "$cmd" in *"-display $VNC_EXPECTED_DISPLAY"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-rfbport $VNC_PORT"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-interface $VNC_HOST"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-SecurityTypes VncAuth"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-PasswordFile $VNC_PASSWORD_FILE"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-AcceptCutText=0"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-SendCutText=0"*) ;; *) return 1 ;; esac
+}
+
+vnc_pid_is_owned_server() {
+  local pid="$1" cmd
+  kill -0 "$pid" 2>/dev/null || return 1
+  [ -r "/proc/$pid/cmdline" ] || return 1
+  cmd="$(tr '\0' ' ' 2>/dev/null <"/proc/$pid/cmdline" || true)"
+  vnc_cmd_is_owned_server "$cmd"
+}
+
+vnc_find_server_pid() {
+  local proc pid cmd found=''
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' 2>/dev/null <"$proc" || true)"
+    if vnc_cmd_is_owned_server "$cmd"; then
+      pid="${proc#/proc/}"
+      pid="${pid%/cmdline}"
+      if [ -n "$found" ] && [ "$pid" != "$found" ]; then
+        vnc_error "MULTIPLE_OWNED_VNC_PROCESSES:$found,$pid"
+        return 1
+      fi
+      found="$pid"
+    fi
+  done
+  [ -n "$found" ] || return 1
+  printf '%s\n' "$found"
+}
+
+vnc_read_pid_file() {
+  local file="$1" pid
+  [ -r "$file" ] || return 1
+  IFS= read -r pid <"$file" || return 1
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s\n' "$pid"
+}
+
+vnc_server_pid() {
+  local pid
+  pid="$(vnc_read_pid_file "$VNC_PID_FILE" 2>/dev/null || true)"
+  if [ -n "$pid" ] && vnc_pid_is_owned_server "$pid"; then
+    printf '%s\n' "$pid"
+    return 0
+  fi
+  vnc_find_server_pid
+}
+
+vnc_cmd_is_owned_launcher() {
+  local cmd="$1" first
+  first="${cmd%% *}"
+  [ "${first##*/}" = proot ] || return 1
+  case "$cmd" in *X0tigervnc*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-display $VNC_EXPECTED_DISPLAY"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-rfbport $VNC_PORT"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-interface $VNC_HOST"*) ;; *) return 1 ;; esac
+  case "$cmd" in *"-PasswordFile $VNC_PASSWORD_FILE"*) ;; *) return 1 ;; esac
+}
+
+vnc_stop_owned_server() {
+  local pid="$1" i
+  vnc_pid_is_owned_server "$pid" || return 1
+  kill -TERM "$pid" 2>/dev/null || true
+  for i in $(seq 1 50); do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep .1
+  done
+  vnc_pid_is_owned_server "$pid" || return 0
+  kill -KILL "$pid" 2>/dev/null || true
+}
+
+vnc_cmd_is_owned_bridge_launcher() {
+  local cmd="$1" marker="$2" first
+  first="${cmd%% *}"
+  [ "${first##*/}" = proot ] || return 1
+  case "$cmd" in
+    *"MACDESK_KEYBOARD_DEVICES=5,8"*|*"MACDESK_KEYBOARD_DEVICE=5"*) ;;
+    *) return 1 ;;
+  esac
+  case "$cmd" in *"$VNC_INPUT_BRIDGE_SCRIPT $marker"*) ;; *) return 1 ;; esac
+}
+
+vnc_cmd_is_owned_bridge_node() {
+  local cmd="$1" marker="$2" first
+  first="${cmd%% *}"
+  [ "${first##*/}" = node ] || return 1
+  case "$cmd" in *"$VNC_INPUT_BRIDGE_SCRIPT $marker"*) ;; *) return 1 ;; esac
+}
+
+vnc_find_bridge_pid() {
+  local kind="$1" marker="$2" proc pid cmd found=''
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' 2>/dev/null <"$proc" || true)"
+    if [ "$kind" = launcher ]; then
+      vnc_cmd_is_owned_bridge_launcher "$cmd" "$marker" || continue
+    else
+      vnc_cmd_is_owned_bridge_node "$cmd" "$marker" || continue
+    fi
+    pid="${proc#/proc/}"
+    pid="${pid%/cmdline}"
+    if [ -n "$found" ] && [ "$pid" != "$found" ]; then
+      vnc_error "MULTIPLE_OWNED_INPUT_BRIDGES:$marker:$found,$pid"
+      return 1
+    fi
+    found="$pid"
+  done
+  [ -n "$found" ] || return 1
+  printf '%s\n' "$found"
+}
+
+vnc_input_bridge_is_healthy() {
+  local marker="$1" launcher node
+  launcher="$(vnc_find_bridge_pid launcher "$marker" 2>/dev/null || true)"
+  node="$(vnc_find_bridge_pid node "$marker" 2>/dev/null || true)"
+  [ -n "$launcher" ] && [ -n "$node" ] && kill -0 "$launcher" 2>/dev/null && kill -0 "$node" 2>/dev/null || return 1
+
+  # Node can survive an X11 restart after its xinput children have exited.
+  # Require at least one live capture so that state cannot be a false PASS.
+  local proc pid ppid cmd
+  for proc in /proc/[0-9]*/status; do
+    [ -r "$proc" ] || continue
+    ppid="$(sed -n 's/^PPid:[[:space:]]*//p' "$proc" 2>/dev/null || true)"
+    [ "$ppid" = "$node" ] || continue
+    pid="${proc#/proc/}"
+    pid="${pid%/status}"
+    cmd="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
+    case "$cmd" in *"/usr/bin/xinput test-xi2 --root "*) return 0 ;; esac
+  done
+  return 1
+}
+
+vnc_stop_input_bridge() {
+  local marker="$1" pid_file="$2" proc pid cmd i
+
+  # Stop only Node processes carrying our exact remote-only marker.
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' 2>/dev/null <"$proc" || true)"
+    vnc_cmd_is_owned_bridge_node "$cmd" "$marker" || continue
+    pid="${proc#/proc/}"
+    pid="${pid%/cmdline}"
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+  for i in $(seq 1 50); do
+    vnc_find_bridge_pid node "$marker" >/dev/null 2>&1 || break
+    sleep .1
+  done
+
+  # The persistent PRoot launcher is also uniquely marked and remote-owned.
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' 2>/dev/null <"$proc" || true)"
+    vnc_cmd_is_owned_bridge_launcher "$cmd" "$marker" || continue
+    pid="${proc#/proc/}"
+    pid="${pid%/cmdline}"
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+  for i in $(seq 1 50); do
+    vnc_find_bridge_pid launcher "$marker" >/dev/null 2>&1 || break
+    sleep .1
+  done
+
+  rm -f "$pid_file"
+  ! vnc_find_bridge_pid node "$marker" >/dev/null 2>&1 && \
+    ! vnc_find_bridge_pid launcher "$marker" >/dev/null 2>&1
+}
+
+vnc_start_input_bridge() {
+  local marker="$1" port="$2" hosts="$3" pid_file="$4" log_file="$5"
+  local launcher lock_file responsive_min_width window_class timezone
+
+  if vnc_input_bridge_is_healthy "$marker"; then
+    launcher="$(vnc_find_bridge_pid launcher "$marker")"
+    printf '%s\n' "$launcher" >"$pid_file"
+    chmod 600 "$pid_file"
+    return 0
+  fi
+
+  vnc_stop_input_bridge "$marker" "$pid_file" || return 1
+  : >>"$log_file"
+  chmod 600 "$log_file"
+  case "$port" in
+    9225)
+      lock_file=/tmp/macdesk-whatsapp-input-bridge.lock
+      responsive_min_width=748
+      window_class=MacDeskWhatsApp
+      timezone=America/Mexico_City
+      ;;
+    9226)
+      lock_file=/tmp/macdesk-chatgpt-input-bridge.lock
+      responsive_min_width=0
+      window_class=MacDeskChatGPT
+      timezone=
+      ;;
+    *) vnc_error "UNKNOWN_INPUT_BRIDGE_PORT:$port"; return 1 ;;
+  esac
+  setsid -f proot-distro login debian --shared-tmp -- env \
+    DISPLAY="$VNC_EXPECTED_DISPLAY" \
+    MACDESK_KEYBOARD_DEVICES=5,8 \
+    MACDESK_CHROMIUM_DEBUG_PORT="$port" \
+    MACDESK_CHROMIUM_TARGET_HOSTS="$hosts" \
+    MACDESK_RESPONSIVE_MIN_WIDTH="$responsive_min_width" \
+    MACDESK_WINDOW_CLASS="$window_class" \
+    MACDESK_TIMEZONE="$timezone" \
+    flock -F -n "$lock_file" \
+    "$TERMUX_PREFIX/bin/node" "$VNC_INPUT_BRIDGE_SCRIPT" "$marker" \
+    </dev/null >>"$log_file" 2>&1
+
+  for _ in $(seq 1 50); do
+    if vnc_input_bridge_is_healthy "$marker"; then
+      launcher="$(vnc_find_bridge_pid launcher "$marker")"
+      printf '%s\n' "$launcher" >"$pid_file"
+      chmod 600 "$pid_file"
+      return 0
+    fi
+    sleep .1
+  done
+  vnc_stop_input_bridge "$marker" "$pid_file" 2>/dev/null || true
+  return 1
+}
+
+vnc_start_input_bridges() {
+  vnc_start_input_bridge \
+    "$VNC_WHATSAPP_BRIDGE_MARKER" 9225 web.whatsapp.com \
+    "$VNC_WHATSAPP_BRIDGE_PID_FILE" "$VNC_WHATSAPP_BRIDGE_LOG" || return 1
+  vnc_start_input_bridge \
+    "$VNC_CHATGPT_BRIDGE_MARKER" 9226 '*' \
+    "$VNC_CHATGPT_BRIDGE_PID_FILE" "$VNC_CHATGPT_BRIDGE_LOG" || {
+      vnc_stop_input_bridge \
+        "$VNC_WHATSAPP_BRIDGE_MARKER" "$VNC_WHATSAPP_BRIDGE_PID_FILE" 2>/dev/null || true
+      return 1
+    }
+}
+
+vnc_stop_input_bridges() {
+  local status=0
+  vnc_stop_input_bridge \
+    "$VNC_WHATSAPP_BRIDGE_MARKER" "$VNC_WHATSAPP_BRIDGE_PID_FILE" || status=1
+  vnc_stop_input_bridge \
+    "$VNC_CHATGPT_BRIDGE_MARKER" "$VNC_CHATGPT_BRIDGE_PID_FILE" || status=1
+  return "$status"
+}

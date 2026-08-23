@@ -1,0 +1,72 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+
+BASE="$HOME/MacDesk-V6"
+STATE="$BASE/state"
+PREFIX=/data/data/com.termux/files/usr
+
+stop_pid_file() {
+  local file="$1" pid
+  [ -f "$file" ] || return 0
+  pid="$(<"$file")"
+  case "$pid" in (*[!0-9]*|'') return 0;; esac
+  kill "$pid" 2>/dev/null || true
+  for _ in $(seq 1 30); do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep .1
+  done
+  kill -9 "$pid" 2>/dev/null || true
+}
+
+# Stop only the primary Firefox instance. Standalone Firefox profiles (Canva,
+# WhatsApp, and similar apps) carry --profile and are never selected here.
+firefox_main=""
+for proc in /proc/[0-9]*/cmdline; do
+  [ -r "$proc" ] || continue
+  cmd="$(tr "\0" " " < "$proc" 2>/dev/null || true)"
+  case "$cmd" in
+    firefox-esr|firefox-esr\ *|*"/usr/lib/firefox-esr/firefox-esr"*)
+      case "$cmd" in *" -contentproc "*|*" --profile "*) continue;; esac
+      firefox_main="${proc#/proc/}"; firefox_main="${firefox_main%/cmdline}"; break;;
+  esac
+done
+if [ -n "$firefox_main" ]; then
+  kill "$firefox_main" 2>/dev/null || true
+  for _ in $(seq 1 30); do
+    kill -0 "$firefox_main" 2>/dev/null || break
+    sleep .1
+  done
+  kill -9 "$firefox_main" 2>/dev/null || true
+fi
+stop_pid_file "$STATE/session.pid"
+stop_pid_file "$STATE/input-guard.pid"
+stop_pid_file "$STATE/plank-geometry-guard.pid"
+stop_pid_file "$STATE/health-supervisor.pid"
+stop_pid_file "$STATE/guest.pid"
+stop_pid_file "$STATE/virgl.pid"
+stop_pid_file "$STATE/x11.pid"
+
+# Remove a socket only when no matching live listener remains. In particular,
+# an already-running Termux:X11 may have been adopted by V6 while the recorded
+# launcher PID exited.
+socket_listener_exists() {
+  local needle="$1" proc cmd
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+    case "$cmd" in (*"$needle"*) return 0;; esac
+  done
+  return 1
+}
+
+if [ -S "$PREFIX/tmp/.virgl_test" ] && ! socket_listener_exists "virgl_test_server_android --no-fork --multi-clients --socket-path $PREFIX/tmp/.virgl_test"; then
+  unlink "$PREFIX/tmp/.virgl_test"
+fi
+if [ -S "$PREFIX/tmp/.X11-unix/X2" ] && ! socket_listener_exists "termux-x11 com.termux.x11 :2"; then
+  unlink "$PREFIX/tmp/.X11-unix/X2"
+fi
+
+rm -f "$STATE/session.pid" "$STATE/input-guard.pid" \
+  "$STATE/plank-geometry-guard.pid" "$STATE/health-supervisor.pid"
+
+echo MACDESK_V6=STOPPED

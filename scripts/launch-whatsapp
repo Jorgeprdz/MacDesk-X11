@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh
+export MOZ_X11_EGL=0
+export TZ="${TZ:-America/Mexico_City}"
+unset MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER ZINK_DESCRIPTORS VK_DRIVER_FILES VTEST_SOCKET_NAME LD_LIBRARY_PATH LIBGL_DRIVERS_PATH MESA_GL_VERSION_OVERRIDE
+
+profile=/root/.config/macdesk-whatsapp-chromium
+base=/data/data/com.termux/files/home/MacDesk-V6
+debug_port=9225
+mkdir -p "$profile"
+
+# Chromium children inherit the profile argument; only a process without a
+# --type role is the browser main process.  Reuse it instead of allocating a
+# duplicate web engine when the launcher is clicked twice.
+for proc in /proc/[0-9]*/cmdline; do
+  [ -r "$proc" ] || continue
+  cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+  case "$cmd" in
+    *"--user-data-dir=$profile"*)
+      case "$cmd" in *--type=*) continue;; esac
+      window="$(xdotool search --onlyvisible --class MacDeskWhatsApp 2>/dev/null | head -1 || true)"
+      [ -z "$window" ] || xdotool windowactivate "$window" >/dev/null 2>&1 || true
+      exit 0
+      ;;
+  esac
+done
+# WhatsApp's isolated Chromium profile repeatedly loses its GPU process under
+# virpipe/DeX.  Keep this lightweight app on Chromium's stable software path;
+# a dead compositor can leave the page painted while editable fields ignore
+# otherwise valid X11 keyboard events.
+chromium --no-sandbox --ozone-platform=x11 --disable-gpu --disable-gpu-compositing --disable-gpu-rasterization \
+  --disable-features=XInput2KeyEvents,UseChromeOSDirectVideoDecoder \
+  --remote-debugging-address=127.0.0.1 --remote-debugging-port="$debug_port" \
+  --user-data-dir="$profile" --class=MacDeskWhatsApp --app=https://web.whatsapp.com "$@" &
+browser_pid=$!
+
+MACDESK_RESPONSIVE_MIN_WIDTH=748 \
+MACDESK_WINDOW_CLASS=MacDeskWhatsApp \
+MACDESK_TIMEZONE="$TZ" \
+flock -F -n /tmp/macdesk-whatsapp-input-bridge.lock \
+  /data/data/com.termux/files/usr/bin/node "$base/scripts/chromium-input-bridge.mjs" \
+  >>"$base/logs/whatsapp-input-bridge.log" 2>&1 &
+bridge_pid=$!
+
+trap 'kill "$browser_pid" "$bridge_pid" 2>/dev/null || true' INT TERM EXIT
+wait "$browser_pid"
+status=$?
+kill "$bridge_pid" 2>/dev/null || true
+wait "$bridge_pid" 2>/dev/null || true
+trap - INT TERM EXIT
+exit "$status"

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /data/data/com.termux/files/home/MacDesk-V6/scripts/launch-google-workspace docs "$@"

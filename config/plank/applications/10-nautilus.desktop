@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Nautilus
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/nautilus.svg
+Exec=/usr/local/bin/macdesk-nautilus /mnt/s25
+StartupWMClass=org.gnome.Nautilus
+Terminal=false
+NoDisplay=true

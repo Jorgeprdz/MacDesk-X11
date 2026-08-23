@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=ChatGPT
+Comment=ChatGPT standalone
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/openai.svg
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-chatgpt
+StartupWMClass=MacDeskChatGPT
+Terminal=false
+NoDisplay=true
+Categories=Network;Chat;

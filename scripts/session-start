@@ -1,0 +1,201 @@
+#!/bin/sh
+set -eu
+
+export DISPLAY="${DISPLAY:-:2}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/runtime-macdesk-v6}"
+export XDG_SESSION_TYPE=x11
+export PULSE_SERVER="${PULSE_SERVER:-127.0.0.1:4713}"
+export LANG="${LANG:-es_MX.UTF-8}"
+export LC_ALL="$LANG"
+export TZ="${TZ:-America/Mexico_City}"
+
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
+
+# Keep Sushi on the same stable software-rendered GTK path as Nautilus. D-Bus
+# activation inherits the bus environment rather than the Nautilus client's
+# environment, so use a service-specific wrapper instead of changing the whole
+# XFCE session.
+install -d -m 0755 /root/.local/share/dbus-1/services
+install -m 0755 /data/data/com.termux/files/home/MacDesk-V6/scripts/launch-sushi-previewer \
+  /usr/local/bin/macdesk-sushi-previewer
+install -m 0644 /data/data/com.termux/files/home/MacDesk-V6/config/dbus/org.gnome.NautilusPreviewer.service \
+  /root/.local/share/dbus-1/services/org.gnome.NautilusPreviewer.service
+
+# Apply only Nautilus keys present in the installed schema. Sushi itself is
+# D-Bus activated on demand by Nautilus, so no always-running preview process
+# is added to the XFCE session.
+if ! /data/data/com.termux/files/home/MacDesk-V6/scripts/configure-nautilus-preview \
+  >/data/data/com.termux/files/home/MacDesk-V6/logs/nautilus-preview-config.log 2>&1; then
+  echo "MacDesk: Nautilus preview configuration failed; continuing XFCE startup" >&2
+fi
+
+# Recreate the stable Android-storage view and desktop integration after any
+# guest replacement or unclean Android restart.
+mkdir -p /mnt /root/.config/gtk-3.0 /root/.config/xfce4/xfconf/xfce-perchannel-xml /root/.config/autostart
+mkdir -p /root/.config/gtk-4.0
+getent group 1023 >/dev/null 2>&1 || groupadd -g 1023 android_media_rw
+id macdesk >/dev/null 2>&1 || useradd -m -u 1000 -g 1023 -s /bin/sh macdesk
+install -m 755 /data/data/com.termux/files/home/MacDesk-V6/scripts/launch-nautilus /usr/local/bin/macdesk-nautilus
+install -m 755 /data/data/com.termux/files/home/MacDesk-V6/assets/nautilus/macdesk-nautilus-skip-root-delay.so /usr/local/lib/macdesk-nautilus-skip-root-delay.so
+[ -e /mnt/s25 ] || ln -s /sdcard /mnt/s25
+cp /data/data/com.termux/files/home/MacDesk-V6/config/storage/gtk-bookmarks /root/.config/gtk-3.0/bookmarks
+cp /data/data/com.termux/files/home/MacDesk-V6/config/gtk-4.0/gtk.css /root/.config/gtk-4.0/gtk.css
+cp /data/data/com.termux/files/home/MacDesk-V6/config/gtk-4.0/gtk-dark.css /root/.config/gtk-4.0/gtk-dark.css
+cp /data/data/com.termux/files/home/MacDesk-V6/config/gtk-3.0/libadwaita.css /root/.config/gtk-3.0/libadwaita.css
+cp /data/data/com.termux/files/home/MacDesk-V6/config/gtk-3.0/libadwaita-tweaks.css /root/.config/gtk-3.0/libadwaita-tweaks.css
+mkdir -p /home/macdesk/.config/gtk-3.0 /home/macdesk/.config/gtk-4.0
+cp /data/data/com.termux/files/home/MacDesk-V6/config/storage/gtk-bookmarks /home/macdesk/.config/gtk-3.0/bookmarks
+cp /data/data/com.termux/files/home/MacDesk-V6/config/gtk-3.0/* /home/macdesk/.config/gtk-3.0/
+cp -a /data/data/com.termux/files/home/MacDesk-V6/config/gtk-4.0/. /home/macdesk/.config/gtk-4.0/
+chown -R 1000:1023 /home/macdesk
+cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/helpers.rc /root/.config/xfce4/helpers.rc
+cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/nautilus-helper.desktop /usr/share/xfce4/helpers/nautilus.desktop
+cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/firefox-browser-helper.desktop /usr/share/xfce4/helpers/firefox-macdesk.desktop
+cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/chromium-helper.desktop /usr/share/xfce4/helpers/chromium.desktop
+if [ ! -s /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml ]; then
+  cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/xfce4-session.xml /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml
+fi
+if [ ! -s /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml ]; then
+  cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/xfce4-panel.xml /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
+fi
+# The repository wallpaper is a first-start default.  Preserve whatever the
+# user selects in XFCE on every later MacDesk restart.
+if [ ! -s /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml ]; then
+  cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/xfce4-desktop.xml /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml
+fi
+if [ ! -s /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml ]; then
+  cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/xfwm4.xml /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml
+fi
+if [ ! -s /root/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml ]; then
+  cp /data/data/com.termux/files/home/MacDesk-V6/config/xfce/xsettings.xml /root/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
+fi
+# The installed theme is named WhiteSur-MacDesk; the former WhiteSur value had
+# no matching theme directory and caused inconsistent fallback icons.
+xfconf-query -c xsettings -p /Net/IconThemeName -s WhiteSur-MacDesk >/dev/null 2>&1 || \
+  xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s WhiteSur-MacDesk >/dev/null 2>&1
+rm -f /root/.config/autostart/cairo-dock.desktop
+cp /data/data/com.termux/files/home/MacDesk-V6/config/autostart/plank.desktop /root/.config/autostart/plank.desktop
+mkdir -p /usr/local/share/icons
+if [ ! -e /usr/local/share/icons/Cupertino-Sonoma ]; then
+  ln -s /data/data/com.termux/files/home/MacDesk-V6/vendor/visual-sources/Cupertino-Sonoma-iCons /usr/local/share/icons/Cupertino-Sonoma
+fi
+mkdir -p /root/.local/share/icons
+if [ ! -e /root/.local/share/icons/WhiteSur-MacDesk ]; then
+  ln -s /data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk /root/.local/share/icons/WhiteSur-MacDesk
+fi
+mkdir -p /usr/local/share/themes
+if [ ! -e /usr/local/share/themes/Tahoe-Dark ]; then
+  ln -s /data/data/com.termux/files/home/MacDesk-V6/vendor/visual-sources/GNOME-macOS-Tahoe/gtk/Tahoe-Dark /usr/local/share/themes/Tahoe-Dark
+fi
+if [ ! -e /usr/local/share/themes/MacDesk-GoldenGate ]; then
+  ln -s /data/data/com.termux/files/home/MacDesk-V6/config/xfwm/MacDesk-GoldenGate /usr/local/share/themes/MacDesk-GoldenGate
+fi
+nautilus_desktop=/usr/share/applications/org.gnome.Nautilus.desktop
+if [ -f "$nautilus_desktop" ] && [ "$(stat -c %a "$nautilus_desktop")" != 644 ]; then
+  backup="${nautilus_desktop}.macdesk-v6-package"
+  [ -e "$backup" ] || mv "$nautilus_desktop" "$backup"
+  cp /usr/local/share/applications/org.gnome.Nautilus.desktop "$nautilus_desktop"
+  chmod 644 "$nautilus_desktop"
+fi
+sed -i 's#^Exec=nautilus#Exec=/usr/local/bin/macdesk-nautilus#' "$nautilus_desktop"
+plank_config=/root/.config/plank/dock1
+plank_launchers="$plank_config/launchers"
+plank_themes=/root/.local/share/plank/themes
+mkdir -p "$plank_launchers" "$plank_themes" /root/.local/share/applications
+cp /data/data/com.termux/files/home/MacDesk-V6/config/plank/applications/*.desktop /root/.local/share/applications/
+# These launchers are intentionally retired from the curated dock. Removing
+# only their live .dockitem files prevents Plank from auto-pinning them again.
+for retired in 05-applications 08-desktop 20-zen 30-chromium 50-libreoffice 60-gnome-software; do
+  rm -f "$plank_launchers/$retired.dockitem"
+done
+for theme in GoldenGate-Light GoldenGate-Dark; do
+  mkdir -p "$plank_themes/$theme"
+  cp "/data/data/com.termux/files/home/MacDesk-V6/assets/themes/$theme/plank/dock.theme" "$plank_themes/$theme/dock.theme"
+done
+for source in /data/data/com.termux/files/home/MacDesk-V6/config/plank/launchers/*.dockitem; do
+  target="$plank_launchers/$(basename "$source")"
+  cp "$source" "$target"
+done
+
+plank_theme=GoldenGate-Light
+if grep -Eq '^ACTIVE_THEME=(current-dark|tahoe-dark|rollback)$' /data/data/com.termux/files/home/MacDesk-V6/state/theme.env 2>/dev/null; then
+  plank_theme=GoldenGate-Dark
+fi
+plank_schema=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
+if [ ! -e "$plank_config/.macdesk-v6-configured" ]; then
+  gsettings set "$plank_schema" alignment center
+  gsettings set "$plank_schema" auto-pinning false
+  gsettings set "$plank_schema" dock-items "['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '27-chatgpt.dockitem', '28-canva.dockitem', '29-google-docs.dockitem', '30-google-sheets.dockitem', '40-terminal.dockitem', '90-trash.dockitem']"
+  gsettings set "$plank_schema" hide-mode none
+  gsettings set "$plank_schema" icon-size 52
+  gsettings set "$plank_schema" items-alignment center
+  gsettings set "$plank_schema" lock-items true
+  gsettings set "$plank_schema" pinned-only true
+  gsettings set "$plank_schema" position bottom
+  gsettings set "$plank_schema" show-dock-item false
+  gsettings set "$plank_schema" zoom-enabled false
+  : > "$plank_config/.macdesk-v6-configured"
+fi
+# Keep the curated launcher order deterministic without changing Plank's
+# geometry, monitor, theme, or visibility preferences.
+curated_dock_items="['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '27-chatgpt.dockitem', '28-canva.dockitem', '29-google-docs.dockitem', '30-google-sheets.dockitem', '40-terminal.dockitem', '90-trash.dockitem']"
+current_dock_items="$(gsettings get "$plank_schema" dock-items)"
+[ "$current_dock_items" = "$curated_dock_items" ] || \
+  gsettings set "$plank_schema" dock-items "$curated_dock_items"
+gsettings set "$plank_schema" pinned-only true
+gsettings set "$plank_schema" theme "$plank_theme"
+
+# Record the exact XFCE session launcher so shutdown can end the session before
+# its proot/dbus wrapper. This prevents orphaned session buses across restarts.
+echo "$$" > /data/data/com.termux/files/home/MacDesk-V6/state/session.pid
+rm -f /data/data/com.termux/files/home/MacDesk-V6/state/session-check.env
+
+# This probe inherits the real dbus-run-session environment. Detached proot
+# logins cannot authoritatively validate Xfconf on this platform.
+(
+  sleep 3
+  check=/data/data/com.termux/files/home/MacDesk-V6/state/session-check.env
+  tmp="${check}.tmp.$$"
+  if xfconf-query -c xfwm4 -p /general/use_compositing >/dev/null 2>&1; then
+    echo DBUS_SESSION=PASS > "$tmp"
+  else
+    echo DBUS_SESSION=FAIL > "$tmp"
+  fi
+  pgrep -x xfce4-session >/dev/null 2>&1 && echo XFCE_SESSION=PASS >> "$tmp" || echo XFCE_SESSION=FAIL >> "$tmp"
+  pgrep -x xfwm4 >/dev/null 2>&1 && echo XFWM=PASS >> "$tmp" || echo XFWM=FAIL >> "$tmp"
+  pgrep -x xfce4-panel >/dev/null 2>&1 && echo XFCE_PANEL=PASS >> "$tmp" || echo XFCE_PANEL=FAIL >> "$tmp"
+  mv "$tmp" "$check"
+) &
+
+# Mexican Spanish XKB is static session configuration, unrelated to Android
+# Termux:X11 preferences.
+setxkbmap -layout latam
+
+# Samsung DeX can emit Super press 133 with Alt release 64. xfsettingsd applies
+# XKB after this script begins, so a session guard enforces the documented safe
+# interim contract after startup and after later keyboard/DeX reconnections.
+/data/data/com.termux/files/home/MacDesk-V6/scripts/input-guard \
+  >/data/data/com.termux/files/home/MacDesk-V6/logs/input-guard.log 2>&1 &
+echo $! > /data/data/com.termux/files/home/MacDesk-V6/state/input-guard.pid
+
+# Plank caches the first GDK monitor height and does not follow later DeX
+# window/RandR resizes.  Restart only the dock after the new root geometry has
+# stabilized and only when its bottom edge is demonstrably stale.
+/data/data/com.termux/files/home/MacDesk-V6/scripts/plank-geometry-guard \
+  >>/data/data/com.termux/files/home/MacDesk-V6/logs/plank-geometry-guard.log 2>&1 &
+echo $! > /data/data/com.termux/files/home/MacDesk-V6/state/plank-geometry-guard.pid
+
+# This monitor is launched here, inside dbus-run-session, so its checks use the
+# authoritative XFCE bus and X display.  It records multi-signal health only;
+# sleeping poll processes and one failed probe never trigger a kill or focus
+# change.
+/data/data/com.termux/files/home/MacDesk-V6/scripts/session-health-supervisor \
+  >/dev/null 2>&1 &
+echo $! > /data/data/com.termux/files/home/MacDesk-V6/state/health-supervisor.pid
+
+# Plank uses ARGB surfaces for its rounded translucent theme. XFWM remains the
+# only compositor; no second compositor or desktop shell is introduced.
+xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s true
+
+exec startxfce4

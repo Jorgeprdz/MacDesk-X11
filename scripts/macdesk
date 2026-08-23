@@ -1,0 +1,132 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="$HOME/MacDesk-V6"
+STATE="$BASE/state"
+LOGS="$BASE/logs"
+DISPLAY_NUM=:2
+PREFIX=/data/data/com.termux/files/usr
+ICD="$PREFIX/share/vulkan/icd.d/freedreno_icd.aarch64.json"
+mkdir -p "$STATE" "$LOGS"
+. "$BASE/scripts/lib/android-x11.sh"
+
+focus_x11_activity() { x11_focus_activity || true; }
+
+# Start the Termux Android PulseAudio sink and expose it to Debian over localhost.
+pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1 || true
+sleep .3
+pulse_runtime="$(readlink -f "$HOME/.config/pulse"/*-runtime 2>/dev/null | head -1)"
+if [ -S "$pulse_runtime/native" ]; then
+  if ! pactl --server="unix:$pulse_runtime/native" list modules short 2>/dev/null | grep -q module-native-protocol-tcp; then
+    pactl --server="unix:$pulse_runtime/native" load-module module-native-protocol-tcp auth-anonymous=1 port=4713 >/dev/null 2>&1 || true
+  fi
+fi
+
+# Enforce the known-good keyboard contract through the safe interface for the
+# installed flavor: direct broadcast for sharedUid, companion helper for the
+# standalone sandbox.  Neither path enables accessibility interception.
+x11_apply_keyboard_preferences
+
+if [ -f "$STATE/guest.pid" ] && kill -0 "$(<"$STATE/guest.pid")" 2>/dev/null; then
+  focus_x11_activity
+  echo 'MACDESK_V6=ALREADY_RUNNING'
+  echo 'TERMUX_X11_ACTIVITY=FOCUSED'
+  exit 0
+fi
+
+x11_existing=''
+for proc in /proc/[0-9]*/cmdline; do
+  [ -r "$proc" ] || continue
+  cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+  case "$cmd" in
+    *"termux-x11 com.termux.x11 $DISPLAY_NUM "*)
+      x11_existing="${proc#/proc/}"
+      x11_existing="${x11_existing%/cmdline}"
+      break
+      ;;
+  esac
+done
+if [ -n "$x11_existing" ]; then
+  rm -f "$STATE/x11.pid"
+  echo "TERMUX_X11=ADOPTED PID=$x11_existing"
+else
+  # A crash can leave the X2 socket pathname behind after its listener dies.
+  # x11_existing was resolved from live processes above, so it is safe to
+  # remove the stale pathname before starting the replacement server.
+  [ ! -S "$PREFIX/tmp/.X11-unix/X2" ] || unlink "$PREFIX/tmp/.X11-unix/X2"
+  setsid termux-x11 "$DISPLAY_NUM" -ac >"$LOGS/termux-x11.log" 2>&1 &
+  echo $! >"$STATE/x11.pid"
+fi
+for _ in $(seq 1 50); do
+  [ -S "$PREFIX/tmp/.X11-unix/X2" ] && break
+  sleep .1
+done
+[ -S "$PREFIX/tmp/.X11-unix/X2" ] || { echo TERMUX_X11=FAIL; exit 1; }
+
+virgl_socket="$PREFIX/tmp/.virgl_test"
+if [ -S "$virgl_socket" ]; then
+  # A socket pathname can survive an Android/Termux crash after its listener
+  # has gone. Preserve any live listener using this exact V6 endpoint, but
+  # recover automatically when no such process exists.
+  virgl_owner=''
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+    case "$cmd" in
+      *virgl_test_server_android*"--socket-path $virgl_socket"*)
+        virgl_owner="${proc#/proc/}"
+        virgl_owner="${virgl_owner%/cmdline}"
+        break
+        ;;
+    esac
+  done
+  if [ -n "$virgl_owner" ]; then
+    echo "VIRGL_SOCKET=ACTIVE PID=$virgl_owner" >&2
+    exit 1
+  fi
+  unlink "$virgl_socket"
+  echo VIRGL_SOCKET=STALE_RECOVERED
+fi
+
+# XFCE owns a persistent virpipe connection while health checks and apps
+# require additional concurrent clients.
+setsid env -u LD_LIBRARY_PATH \
+  VTEST_USE_GLES=1 \
+  VK_DRIVER_FILES="$ICD" \
+  MESA_LOADER_DRIVER_OVERRIDE=zink \
+  GALLIUM_DRIVER=zink \
+  virgl_test_server_android --no-fork --multi-clients \
+    --socket-path "$virgl_socket" \
+    >"$LOGS/virgl.log" 2>&1 &
+echo $! >"$STATE/virgl.pid"
+for _ in $(seq 1 50); do
+  [ -S "$PREFIX/tmp/.virgl_test" ] && break
+  sleep .1
+done
+[ -S "$PREFIX/tmp/.virgl_test" ] || { echo VIRGL=FAIL; exit 1; }
+
+focus_x11_activity
+
+setsid proot-distro login debian --shared-tmp \
+  -e DISPLAY="$DISPLAY_NUM" \
+  -e XDG_RUNTIME_DIR=/tmp/runtime-macdesk-v6 \
+  -e LANG=es_MX.UTF-8 \
+  -- sh -lc \
+  '. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh; exec dbus-run-session -- /data/data/com.termux/files/home/MacDesk-V6/scripts/session-start' \
+  >"$LOGS/xfce-session.log" 2>&1 &
+echo $! >"$STATE/guest.pid"
+
+for _ in $(seq 1 100); do
+  if proot-distro login debian --shared-tmp -- sh -lc \
+    'DISPLAY=:2 xprop -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1'; then
+    echo TERMUX_X11=PASS
+    echo VIRGL=PASS
+    echo XFCE=PASS
+    echo MACDESK_V6=RUNNING
+    exit 0
+  fi
+  sleep .1
+done
+
+echo XFCE=FAIL
+exit 1

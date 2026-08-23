@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+schema=org.gnome.nautilus.preferences
+keys="$(gsettings list-keys "$schema")"
+
+has_key() {
+  printf '%s\n' "$keys" | grep -qx "$1"
+}
+
+if has_key show-image-thumbnails; then
+  gsettings set "$schema" show-image-thumbnails always
+  echo SHOW_IMAGE_THUMBNAILS=always
+else
+  echo SHOW_IMAGE_THUMBNAILS=UNAVAILABLE
+fi
+
+# Nautilus 48 measures this key in MiB. 256 MiB is broad enough for photos,
+# PDFs and ordinary videos without making accidental multi-gigabyte previews
+# compete with the phone's active desktop session.
+if has_key thumbnail-limit; then
+  gsettings set "$schema" thumbnail-limit 256
+  echo THUMBNAIL_LIMIT_MIB=256
+else
+  echo THUMBNAIL_LIMIT_MIB=UNAVAILABLE
+fi
+
+if [ -x /usr/libexec/org.gnome.NautilusPreviewer ] && \
+   [ -r /usr/share/dbus-1/services/org.gnome.NautilusPreviewer.service ]; then
+  echo SUSHI_DBUS_ACTIVATION=AVAILABLE
+else
+  echo SUSHI_DBUS_ACTIVATION=UNAVAILABLE
+  exit 1
+fi

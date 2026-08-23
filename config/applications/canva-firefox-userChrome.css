@@ -1,0 +1,16 @@
+/* MacDesk Canva shell: Firefox chrome is hidden only in Canva's profile. */
+#TabsToolbar,
+#nav-bar,
+#PersonalToolbar,
+#toolbar-menubar,
+#sidebar-header,
+#firefox-view-button,
+#alltabs-button {
+  visibility: collapse !important;
+}
+
+/* Suppress transient browser notices that would otherwise look like app UI. */
+#notifications-toolbar,
+notification-message[value="content-blocking-category"] {
+  display: none !important;
+}

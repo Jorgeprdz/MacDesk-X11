@@ -1,0 +1,33 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="$HOME/MacDesk-V6"
+PREFIX=/data/data/com.termux/files/usr
+. "$BASE/scripts/lib/android-x11.sh"
+
+display="$(x11_detect_dex_display || true)"
+[ -n "$display" ] || {
+  echo 'DEX_DISPLAY=NOT_FOUND'
+  exit 1
+}
+
+x11_focus_activity
+echo "DEX_DISPLAY=$display"
+
+if [ ! -S "$PREFIX/tmp/.X11-unix/X2" ]; then
+  echo 'X11=DOWN'
+  echo 'RECOVERY=STARTING_MACDESK_V6'
+  exec "$BASE/scripts/macdesk"
+fi
+
+if proot-distro login debian --shared-tmp -- sh -lc \
+  'DISPLAY=:2 xprop -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1'; then
+  echo 'X11=PASS'
+  echo 'XFWM=PASS'
+  echo 'MACDESK_RESUME=PASS'
+else
+  echo 'X11=PASS'
+  echo 'XFWM=FAIL'
+  echo 'RECOVERY=STARTING_MACDESK_V6'
+  exec "$BASE/scripts/macdesk"
+fi

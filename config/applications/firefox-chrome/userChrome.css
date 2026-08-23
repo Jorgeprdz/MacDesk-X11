@@ -1,0 +1,53 @@
+/* Liquid Fox for MacDesk Linux/XFCE.
+ * Upstream is preserved verbatim in liquid-fox.css; this wrapper supplies the
+ * stable X11 base that macOS normally provides through native vibrancy. */
+@import url("liquid-fox.css");
+
+@media (-moz-platform: linux) {
+  :root {
+    --liquid-radius: 16px;
+    --liquid-radius-small: 10px;
+  }
+
+  :root:not([windowtype="Toolkit:PictureInPicture"], [inDOMFullscreen]) {
+    appearance: auto !important;
+    /* Opaque on X11: transparent top-level surfaces flash while XFWM and
+       WebRender negotiate intermediate sizes during live resize. */
+    background-color: light-dark(rgb(238, 241, 246), rgb(25, 27, 32)) !important;
+    background-image: var(--liquid-window-tint) !important;
+  }
+
+  /* XFWM supplies composition while Firefox keeps one client-side frame. */
+  #main-window,
+  #navigator-toolbox,
+  #browser {
+    -moz-appearance: none !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Liquid Fox draws a one-pixel glass highlight around its inner cards.
+     GoldenGate's cyan accent makes that highlight look like a hard frame. */
+  .browserContainer::after,
+  .sidebar-browser-stack::after {
+    display: none !important;
+    border-color: transparent !important;
+    background: transparent !important;
+  }
+
+  /* Firefox 140 adds a revamp content-area outline to #tabbrowser-tabbox.
+     GoldenGate resolves it to cyan, so suppress just that perimeter. */
+  #tabbrowser-tabbox {
+    outline: none !important;
+    outline-color: transparent !important;
+  }
+
+  /* Linux has no NSVisualEffectView. Give floating surfaces a readable
+     acrylic base while retaining Liquid Fox shadows, radii, and gradients. */
+  #tab-preview-panel,
+  panel[type="arrow"]::part(content),
+  menupopup {
+    background-color: light-dark(rgba(248, 249, 252, 0.90), rgba(28, 30, 36, 0.90)) !important;
+  }
+}

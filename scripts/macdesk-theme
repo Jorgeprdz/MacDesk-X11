@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+ROOT=/data/data/com.termux/files/home/MacDesk-V6
+mode="${1:-}"
+case "$mode" in
+  light|current-light) theme=GoldenGate-Light; xfwm=GoldenGate-Light; source=GoldenGate-Light; wallpaper=Tahoe-5k-light.jpg; icon=WhiteSur ;;
+  dark|current-dark)  theme=GoldenGate-Dark;  xfwm=GoldenGate-Dark;  source=GoldenGate-Dark;  wallpaper=Tahoe-5k-dark.jpg; icon=WhiteSur-dark ;;
+  tahoe-light) theme=Tahoe-Alt-Light; xfwm=GoldenGate-Light; source=Tahoe-Alt-Light; wallpaper=Tahoe-5k-light.jpg; icon=WhiteSur ;;
+  tahoe-dark)  theme=Tahoe-Alt-Dark;  xfwm=GoldenGate-Dark;  source=Tahoe-Alt-Dark;  wallpaper=Tahoe-5k-dark.jpg; icon=WhiteSur-dark ;;
+  rollback) theme=GoldenGate-Dark; xfwm=GoldenGate-Dark; source=GoldenGate-Dark; wallpaper=Tahoe-5k-dark.jpg; icon=Cupertino-Sonoma ;;
+  *) echo "Usage: macdesk-theme current-light|current-dark|tahoe-light|tahoe-dark|rollback" >&2; exit 2 ;;
+esac
+
+rm -rf "$ROOT/config/gtk-4.0"
+mkdir -p "$ROOT/config/gtk-4.0"
+cp -a "$ROOT/assets/themes/$source/gtk-4.0/." "$ROOT/config/gtk-4.0/"
+sed -i "/name=\"ThemeName\"/s/value=\"[^\"]*\"/value=\"$theme\"/" "$ROOT/config/xfce/xsettings.xml"
+sed -i "/name=\"IconThemeName\"/s/value=\"[^\"]*\"/value=\"$icon\"/" "$ROOT/config/xfce/xsettings.xml"
+sed -i "/name=\"theme\"/s/value=\"[^\"]*\"/value=\"$xfwm\"/" "$ROOT/config/xfce/xfwm4.xml"
+sed -i "s#Tahoe-5k-[a-z]*\.jpg#${wallpaper}#" "$ROOT/config/xfce/xfce4-desktop.xml"
+printf 'ACTIVE_THEME=%s\nUPDATED_AT=%s\n' "$mode" "$(date -Iseconds)" > "$ROOT/state/theme.env"
+
+# A deliberate theme switch replaces the XFCE runtime snapshots. Plank reads
+# the selected GoldenGate variant from state/theme.env on the next session.
+proot-distro login debian --shared-tmp -- sh -lc 'rm -f /root/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml'
+"$ROOT/scripts/macdesk-stop"
+"$ROOT/scripts/macdesk"
+echo "XFWM_THEME=$xfwm"
+echo "MACTAHOE_${mode}=PASS"

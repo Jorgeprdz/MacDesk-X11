@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Firefox
+Comment=MacDesk web browser accelerated by Adreno
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/firefox.svg
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-firefox
+StartupWMClass=firefox-esr
+Terminal=false
+NoDisplay=true

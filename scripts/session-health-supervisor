@@ -1,0 +1,152 @@
+#!/bin/sh
+set -u
+
+export DISPLAY="${DISPLAY:-:2}"
+BASE=/data/data/com.termux/files/home/MacDesk-V6
+STATE="$BASE/state/session-health.env"
+LOG="$BASE/logs/session-health.log"
+firefox_failures=0
+whatsapp_failures=0
+terminal_failures=0
+
+find_main_pid() {
+  needle="$1"
+  reject="${2:-__never__}"
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+    case "$cmd" in
+      *"$needle"*) case "$cmd" in *"$reject"*) continue;; esac
+        pid="${proc#/proc/}"; printf '%s\n' "${pid%/cmdline}"; return 0;;
+    esac
+  done
+  return 1
+}
+
+window_exists() {
+  timeout 2 xdotool search --onlyvisible --class "$1" >/dev/null 2>&1
+}
+
+window_exists_for_pid() {
+  timeout 2 xdotool search --onlyvisible --pid "$1" --class "$2" >/dev/null 2>&1
+}
+
+find_primary_firefox_pid() {
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+    case "$cmd" in
+      firefox-esr|firefox-esr\ *|*"/usr/lib/firefox-esr/firefox-esr"*)
+        case "$cmd" in *" -contentproc "*|*" --profile "*) continue;; esac
+        pid="${proc#/proc/}"; printf '%s\n' "${pid%/cmdline}"; return 0;;
+    esac
+  done
+  return 1
+}
+
+process_state() {
+  [ -r "/proc/$1/stat" ] || return 1
+  awk '{print $3}' "/proc/$1/stat"
+}
+
+log_transition() {
+  key="$1" value="$2" old=''
+  [ -r "$STATE" ] && old="$(sed -n "s/^$key=//p" "$STATE" | head -1)"
+  [ "$old" = "$value" ] || printf '%s %s=%s previous=%s\n' \
+    "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$key" "$value" "${old:-NONE}" >> "$LOG"
+}
+
+plank_guard_is_healthy() {
+  guard_pid="$(cat "$BASE/state/plank-geometry-guard.pid" 2>/dev/null || true)"
+  case "$guard_pid" in ""|*[!0-9]*) return 1 ;; esac
+  kill -0 "$guard_pid" 2>/dev/null || return 1
+  [ "$(process_state "$guard_pid" 2>/dev/null || true)" != Z ] || return 1
+  guard_cmd="$(tr "\0" " " <"/proc/$guard_pid/cmdline" 2>/dev/null || true)"
+  case "$guard_cmd" in *"/MacDesk-V6/scripts/plank-geometry-guard"*) return 0 ;; esac
+  return 1
+}
+
+ensure_plank_geometry_guard() {
+  plank_guard_is_healthy && return 0
+  "$BASE/scripts/plank-geometry-guard" >>"$BASE/logs/plank-geometry-guard.log" 2>&1 &
+  guard_pid=$!
+  printf "%s\n" "$guard_pid" >"$BASE/state/plank-geometry-guard.pid"
+  printf "%s PLANK_GEOMETRY_GUARD=RESTARTED PID=%s\n" "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$guard_pid" >>"$LOG"
+}
+
+while :; do
+  ensure_plank_geometry_guard
+  # Wallpaper selection belongs to XFCE and the user.  In particular, do not
+  # force the built-in and external monitor profiles to share one image.
+  x11=FAIL
+  wm=FAIL
+  dbus=FAIL
+  timeout 2 xprop -root >/dev/null 2>&1 && x11=PASS
+  if [ "$x11" = PASS ] && pgrep -x xfwm4 >/dev/null 2>&1 \
+    && timeout 2 xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q 'window id'; then
+    wm=PASS
+  fi
+  if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
+    && timeout 2 dbus-send --session --type=method_call --print-reply \
+      --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
+    dbus=PASS
+  fi
+
+  firefox=STOPPED
+  firefox_pid="$(find_primary_firefox_pid || true)"
+  if [ -n "$firefox_pid" ]; then
+    firefox_state="$(process_state "$firefox_pid" || true)"
+    if [ "$x11" = PASS ] && [ "$wm" = PASS ] && window_exists_for_pid "$firefox_pid" firefox-esr \
+      && [ "$firefox_state" != D ] && [ "$firefox_state" != Z ]; then
+      firefox=PASS
+    else
+      firefox="DEGRADED_${firefox_state:-UNKNOWN}"
+    fi
+  fi
+
+  whatsapp=STOPPED
+  whatsapp_pid="$(find_main_pid '--user-data-dir=/root/.config/macdesk-whatsapp-chromium' '--type=' || true)"
+  if [ -n "$whatsapp_pid" ]; then
+    whatsapp_state="$(process_state "$whatsapp_pid" || true)"
+    if [ "$x11" = PASS ] && [ "$wm" = PASS ] && window_exists MacDeskWhatsApp \
+      && [ "$whatsapp_state" != D ] && [ "$whatsapp_state" != Z ]; then
+      whatsapp=PASS
+    else
+      whatsapp="DEGRADED_${whatsapp_state:-UNKNOWN}"
+    fi
+  fi
+
+  terminal=STOPPED
+  terminal_pid="$(pgrep -x xfce4-terminal | head -1 || true)"
+  if [ -n "$terminal_pid" ]; then
+    terminal_state="$(process_state "$terminal_pid" || true)"
+    if [ "$x11" = PASS ] && [ "$wm" = PASS ] && window_exists xfce4-terminal \
+      && [ "$terminal_state" != D ] && [ "$terminal_state" != Z ]; then
+      terminal=PASS
+    else
+      terminal="DEGRADED_${terminal_state:-UNKNOWN}"
+    fi
+  fi
+
+  case "$firefox" in DEGRADED_*) firefox_failures=$((firefox_failures + 1));; *) firefox_failures=0;; esac
+  case "$whatsapp" in DEGRADED_*) whatsapp_failures=$((whatsapp_failures + 1));; *) whatsapp_failures=0;; esac
+  case "$terminal" in DEGRADED_*) terminal_failures=$((terminal_failures + 1));; *) terminal_failures=0;; esac
+
+  for pair in "X11_HEALTH:$x11" "XFWM_HEALTH:$wm" "DBUS_HEALTH:$dbus" \
+    "FIREFOX_HEALTH:$firefox" "WHATSAPP_HEALTH:$whatsapp" "TERMINAL_HEALTH:$terminal"; do
+    log_transition "${pair%%:*}" "${pair#*:}"
+  done
+
+  tmp="${STATE}.tmp.$$"
+  {
+    printf 'CHECKED_AT=%s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')"
+    printf 'X11_HEALTH=%s\nXFWM_HEALTH=%s\nDBUS_HEALTH=%s\n' "$x11" "$wm" "$dbus"
+    printf 'FIREFOX_HEALTH=%s\nWHATSAPP_HEALTH=%s\nTERMINAL_HEALTH=%s\n' \
+      "$firefox" "$whatsapp" "$terminal"
+    printf 'FIREFOX_CONSECUTIVE_FAILURES=%s\n' "$firefox_failures"
+    printf 'WHATSAPP_CONSECUTIVE_FAILURES=%s\n' "$whatsapp_failures"
+    printf 'TERMINAL_CONSECUTIVE_FAILURES=%s\n' "$terminal_failures"
+  } > "$tmp"
+  mv "$tmp" "$STATE"
+  sleep 10
+done

@@ -1,0 +1,44 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+. /data/data/com.termux/files/home/MacDesk-V6/scripts/macdesk-vnc-common
+
+vnc_stop_input_bridges || {
+  vnc_error 'REMOTE_INPUT_BRIDGES_STILL_PRESENT'
+  exit 1
+}
+
+pid="$(vnc_server_pid 2>/dev/null || true)"
+if [ -n "$pid" ]; then
+  vnc_stop_owned_server "$pid" || {
+    vnc_error "REFUSED_TO_STOP_UNOWNED_PID:$pid"
+    exit 1
+  }
+fi
+
+launcher_pid="$(vnc_read_pid_file "$VNC_LAUNCHER_PID_FILE" 2>/dev/null || true)"
+if [ -n "$launcher_pid" ] && kill -0 "$launcher_pid" 2>/dev/null; then
+  cmd="$(tr '\0' ' ' <"/proc/$launcher_pid/cmdline" 2>/dev/null || true)"
+  if vnc_cmd_is_owned_launcher "$cmd"; then
+    kill -TERM "$launcher_pid" 2>/dev/null || true
+  fi
+fi
+
+rm -f "$VNC_PID_FILE" "$VNC_LAUNCHER_PID_FILE"
+if vnc_find_server_pid >/dev/null 2>&1; then
+  vnc_error 'OWNED_VNC_PROCESS_STILL_PRESENT'
+  exit 1
+fi
+if vnc_adb_ready && [ -n "$(vnc_listener_lines 2>/dev/null)" ]; then
+  vnc_error "PORT_STILL_OCCUPIED:$VNC_PORT"
+  exit 1
+fi
+
+echo 'MACDESK_VNC=STOPPED'
+echo 'REMOTE_INPUT_BRIDGES=STOPPED'
+if display="$(vnc_detect_display 2>/dev/null)" && \
+    vnc_display_is_healthy "$display" && vnc_desktop_stack_is_single; then
+  echo 'MACDESK=STILL_RUNNING'
+  echo "DISPLAY=$display"
+else
+  echo 'MACDESK=STOPPED_OR_UNHEALTHY'
+fi

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Google Docs
+Comment=Google Docs standalone
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/google-docs.svg
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-google-docs
+StartupWMClass=MacDeskGoogleDocs
+Terminal=false
+NoDisplay=true
+Categories=Office;WordProcessor;

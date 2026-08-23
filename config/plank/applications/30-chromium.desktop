@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Chromium
+Icon=chromium
+Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-chromium
+StartupWMClass=chromium
+Terminal=false
+NoDisplay=true

@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh
+export MOZ_X11_EGL=0
+unset MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER ZINK_DESCRIPTORS VK_DRIVER_FILES VTEST_SOCKET_NAME LD_LIBRARY_PATH LIBGL_DRIVERS_PATH MESA_GL_VERSION_OVERRIDE
+
+profile=/root/.config/macdesk-chatgpt-chromium
+base=/data/data/com.termux/files/home/MacDesk-V6
+debug_port=9226
+mkdir -p "$profile"
+chmod 700 "$profile"
+
+# Reuse the isolated ChatGPT window when its dock icon is clicked again.
+for proc in /proc/[0-9]*/cmdline; do
+  [ -r "$proc" ] || continue
+  cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+  case "$cmd" in
+    *"--user-data-dir=$profile"*)
+      case "$cmd" in *--type=*) continue;; esac
+      window="$(xdotool search --onlyvisible --class MacDeskChatGPT 2>/dev/null | head -1 || true)"
+      [ -z "$window" ] || xdotool windowactivate "$window" >/dev/null 2>&1 || true
+      exit 0
+      ;;
+  esac
+done
+
+# The software rendering path is the reliable Chromium app path under
+# Termux:X11/DeX. CDP remains local-only and powers the scoped keyboard bridge.
+chromium --no-sandbox --ozone-platform=x11 --disable-gpu --disable-gpu-compositing --disable-gpu-rasterization \
+  --password-store=basic \
+  --disable-features=XInput2KeyEvents,UseChromeOSDirectVideoDecoder \
+  --remote-debugging-address=127.0.0.1 --remote-debugging-port="$debug_port" \
+  --user-data-dir="$profile" --class=MacDeskChatGPT --app=https://chatgpt.com "$@" &
+browser_pid=$!
+
+MACDESK_CHROMIUM_DEBUG_PORT="$debug_port" \
+MACDESK_CHROMIUM_TARGET_HOSTS="*" \
+MACDESK_RESPONSIVE_MIN_WIDTH=0 \
+MACDESK_WINDOW_CLASS=MacDeskChatGPT \
+MACDESK_EMPTY_CHAT_RESPONSE_RELOAD=1 \
+flock -F -n /tmp/macdesk-chatgpt-input-bridge.lock \
+  /data/data/com.termux/files/usr/bin/node "$base/scripts/chromium-input-bridge.mjs" \
+  >>"$base/logs/chatgpt-input-bridge.log" 2>&1 &
+bridge_pid=$!
+
+trap 'kill "$browser_pid" "$bridge_pid" 2>/dev/null || true' INT TERM EXIT
+wait "$browser_pid"
+status=$?
+kill "$bridge_pid" 2>/dev/null || true
+wait "$bridge_pid" 2>/dev/null || true
+trap - INT TERM EXIT
+exit "$status"

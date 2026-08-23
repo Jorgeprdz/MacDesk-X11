@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=App Store
+Comment=Install and manage Debian packages
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/synaptic.svg
+Exec=synaptic
+StartupWMClass=synaptic
+Terminal=false
+NoDisplay=true

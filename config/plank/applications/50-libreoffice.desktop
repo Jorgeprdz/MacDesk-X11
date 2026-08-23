@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LibreOffice
+Icon=libreoffice-startcenter
+Exec=libreoffice --nologo --nofirststartwizard
+StartupWMClass=libreoffice
+Terminal=false
+NoDisplay=true

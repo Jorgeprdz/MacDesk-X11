@@ -1,0 +1,64 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+
+BASE="$HOME/MacDesk-V6"
+LOG="$BASE/logs/macdesk-remote-app.log"
+LOCK="$BASE/state/macdesk-remote-app.lock"
+ACTION="${1:-status}"
+
+mkdir -p "$BASE/logs" "$BASE/state"
+
+remote_online() {
+  adb -s emulator-5554 shell 'ss -ltn 2>/dev/null' 2>/dev/null |
+    grep -q '100\.108\.132\.112:5902'
+}
+
+macdesk_session_running() {
+  local pid cmd proc
+  [ -f "$BASE/state/guest.pid" ] || return 1
+  pid="$(cat "$BASE/state/guest.pid" 2>/dev/null || true)"
+  case "$pid" in ""|*[!0-9]*) return 1 ;; esac
+  kill -0 "$pid" 2>/dev/null || return 1
+  [ -S "$PREFIX/tmp/.X11-unix/X2" ] || return 1
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr "\0" " " <"$proc" 2>/dev/null || true)"
+    case "$cmd" in *"termux-x11 com.termux.x11 :2 -ac"*) return 0 ;; esac
+  done
+  return 1
+}
+
+case "$ACTION" in
+  status)
+    if remote_online; then echo 'MACDESK_REMOTE=RUNNING'; else echo 'MACDESK_REMOTE=STOPPED'; fi
+    ;;
+  start)
+    if remote_online; then
+      echo 'MACDESK_REMOTE=ALREADY_RUNNING'
+      exit 0
+    fi
+    if ! mkdir "$LOCK" 2>/dev/null; then
+      echo 'MACDESK_REMOTE=START_IN_PROGRESS'
+      exit 0
+    fi
+    trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT INT TERM
+    {
+      echo "[$(date '+%F %T')] ACTION=START"
+      if ! macdesk_session_running; then
+        echo 'MACDESK=STARTING_NORMAL_ENTRYPOINT'
+        "$PREFIX/bin/macdesk"
+      fi
+      timeout 60 "$BASE/scripts/macdesk-vnc-start"
+    } >>"$LOG" 2>&1
+    ;;
+  stop)
+    {
+      echo "[$(date '+%F %T')] ACTION=STOP"
+      timeout 45 "$BASE/scripts/macdesk-vnc-stop"
+    } >>"$LOG" 2>&1
+    ;;
+  *)
+    echo 'USAGE: macdesk-remote-app-control start|stop|status' >&2
+    exit 2
+    ;;
+esac

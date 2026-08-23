@@ -1,0 +1,84 @@
+#!/bin/sh
+set -eu
+
+base=/data/data/com.termux/files/home/MacDesk-V6
+. "$base/config/gpu/env.sh"
+
+# Firefox runs on the proven Adreno 830 -> Turnip -> Zink X11 path.
+export MOZ_ENABLE_WAYLAND=0
+# EGL-on-X11 corrupts intermediate WebRender surfaces on Termux:X11. Keep the
+# Adreno/Turnip/Zink stack but use its GLX presentation path.
+export MOZ_X11_EGL=0
+export MOZ_WEBRENDER=0
+export MOZ_ACCELERATED=0
+# Keep Firefox chrome integrated. GTK's "system"/"none" modes hand the frame
+# back to XFWM in this stack and add an unwanted second title bar.
+export MOZ_GTK_TITLEBAR_DECORATION=client
+
+profiles_ini=/root/.mozilla/firefox/profiles.ini
+profile_rel=''
+if [ -r "$profiles_ini" ]; then
+  profile_rel="$(awk -F= '$1 == "Default" { value=$2 } END { print value }' "$profiles_ini")"
+fi
+if [ -n "$profile_rel" ] && [ -d "/root/.mozilla/firefox/$profile_rel" ]; then
+  install -m 600 "$base/config/applications/firefox-user.js" \
+    "/root/.mozilla/firefox/$profile_rel/user.js"
+  mkdir -p "/root/.mozilla/firefox/$profile_rel/chrome"
+  install -m 644 "$base/config/applications/firefox-chrome/userChrome.css" \
+    "/root/.mozilla/firefox/$profile_rel/chrome/userChrome.css"
+  install -m 644 "$base/config/applications/firefox-chrome/liquid-fox.css" \
+    "/root/.mozilla/firefox/$profile_rel/chrome/liquid-fox.css"
+fi
+
+# Firefox remoting is unreliable between separate PRoot launcher processes and
+# can show a misleading "already running, not responding" dialog. Reuse the
+# verified primary window through X11 instead. Standalone --profile instances
+# are deliberately excluded.
+primary_pid=''
+for proc in /proc/[0-9]*/cmdline; do
+  [ -r "$proc" ] || continue
+  cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+  case "$cmd" in
+    *" -contentproc "*|*" --profile "*) continue;;
+    firefox-esr|firefox-esr\ *|*"/usr/lib/firefox-esr/firefox-esr"*)
+      primary_pid="${proc#/proc/}"; primary_pid="${primary_pid%/cmdline}"; break;;
+  esac
+done
+
+if [ -n "$primary_pid" ] && command -v xdotool >/dev/null 2>&1; then
+  primary_window=''
+  for candidate in $(xdotool search --pid "$primary_pid" --class firefox-esr 2>/dev/null); do
+    geometry="$(xdotool getwindowgeometry --shell "$candidate" 2>/dev/null || true)"
+    width="$(printf '%s\n' "$geometry" | sed -n 's/^WIDTH=//p')"
+    height="$(printf '%s\n' "$geometry" | sed -n 's/^HEIGHT=//p')"
+    [ "${width:-0}" -ge 300 ] 2>/dev/null && [ "${height:-0}" -ge 200 ] 2>/dev/null || continue
+    primary_window="$candidate"
+  done
+  if [ -n "$primary_window" ]; then
+    action=focus
+    url=''
+    case "${1:-}" in
+      --new-window) action=window; shift; url="${1:-}";;
+      --private-window) action=private; shift; url="${1:-}";;
+      --new-tab) action=tab; shift; url="${1:-}";;
+      '') ;;
+      *) action=tab; url="$1";;
+    esac
+    xdotool windowactivate --sync "$primary_window"
+    case "$action" in
+      window) xdotool key --window "$primary_window" --clearmodifiers ctrl+n;;
+      private) xdotool key --window "$primary_window" --clearmodifiers ctrl+shift+p;;
+      tab) xdotool key --window "$primary_window" --clearmodifiers ctrl+t;;
+    esac
+    if [ -n "$url" ]; then
+      sleep .4
+      target="$(xdotool getactivewindow 2>/dev/null || printf '%s' "$primary_window")"
+      xdotool key --window "$target" --clearmodifiers ctrl+l
+      xdotool type --window "$target" --clearmodifiers --delay 1 "$url"
+      xdotool key --window "$target" Return
+    fi
+    exit 0
+  fi
+fi
+
+exec firefox-esr "$@"

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Icon=chromium
+Type=X-XFCE-Helper
+Name=Chromium
+StartupNotify=true
+X-XFCE-Binaries=macdesk-chromium;
+X-XFCE-Category=WebBrowser
+X-XFCE-Commands=/usr/local/bin/macdesk-chromium;
+X-XFCE-CommandsWithParameter=/usr/local/bin/macdesk-chromium "%s";

@@ -1,0 +1,85 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="$HOME/MacDesk-V6"
+STATE="$BASE/.x11-standalone-migration-state"
+ADB=${ADB:-adb}
+APK=/sdcard/Download/termux-x11-standalone.apk
+BACKUP=/data/data/com.termux/files/home/macdesk-migration-backups/20260821-1618-pre-standalone
+
+[ -r "$STATE" ] || { echo MIGRATION_STATE=MISSING; exit 1; }
+[ -f "$APK" ] || { echo APK_STANDALONE=MISSING; exit 1; }
+[ -d "$BACKUP" ] || { echo BACKUP=MISSING; exit 1; }
+[ "$(sha256sum "$APK" | awk '{print $1}')" = \
+  cc16c4f4108604aa3cb6ea5768871146aadcc1908bed46a7b5cc3d3449b179db ] \
+  || { echo APK_STANDALONE=HASH_FAIL; exit 1; }
+command -v "$ADB" >/dev/null 2>&1 || { echo ADB=UNAVAILABLE; exit 1; }
+[ "$("$ADB" get-state 2>/dev/null || true)" = device ] \
+  || { echo ADB=NOT_CONNECTED; exit 1; }
+
+package_uid() {
+  local package="$1"
+  "$ADB" shell pm list packages -U "$package" 2>/dev/null \
+    | tr -d '\r' \
+    | awk -v name="package:$package" \
+      '$1 == name { sub(/^uid:/, "", $2); print $2; exit }'
+}
+
+write_state() {
+  local current="$1" last="$2" next="$3" termux_uid="$4" x11_uid="$5"
+  {
+    echo 'PHASE=WAITING_FOR_STANDALONE_INSTALL'
+    echo "CURRENT_PHASE=$current"
+    echo "LAST_SUCCESSFUL_STEP=$last"
+    echo "NEXT_EXPECTED_STEP=$next"
+    echo "TERMUX_UID=$termux_uid"
+    echo "TERMUX_X11_UID=${x11_uid:-NOT_INSTALLED}"
+    echo "APK_PATH=$APK"
+    echo 'APK_SHA256=cc16c4f4108604aa3cb6ea5768871146aadcc1908bed46a7b5cc3d3449b179db'
+    echo 'APK_VERSION=1.03.01-f68cd36-21.08.26'
+    echo 'APP_LABEL=MacDesk'
+    echo "BACKUP_PATH=$BACKUP"
+    echo "UPDATED_AT=$(date '+%Y-%m-%dT%H:%M:%S%:z')"
+  } > "${STATE}.tmp"
+  mv "${STATE}.tmp" "$STATE"
+}
+
+termux_uid="$(package_uid com.termux)"
+[ -n "$termux_uid" ] || { echo TERMUX=NOT_INSTALLED; exit 1; }
+x11_uid="$(package_uid com.termux.x11)"
+
+echo "TERMUX_UID=$termux_uid"
+if [ -z "$x11_uid" ]; then
+  write_state WAITING_FOR_STANDALONE_INSTALL SHAREDUID_X11_UNINSTALLED \
+    USER_INSTALLS_STANDALONE_APK "$termux_uid" ''
+  echo 'TERMUX_X11=NOT_INSTALLED'
+  echo 'NEXT_EXPECTED_STEP=USER_INSTALLS_STANDALONE_APK'
+  exit 0
+fi
+
+echo "TERMUX_X11_UID=$x11_uid"
+if [ "$termux_uid" = "$x11_uid" ]; then
+  echo 'SHARED_UID=YES'
+  echo 'NEXT_EXPECTED_STEP=USER_UNINSTALLS_MACDESK_X11'
+  exit 0
+fi
+saved_phase="$(sed -n 's/^PHASE=//p' "$STATE" | head -1)"
+saved_current="$(sed -n 's/^CURRENT_PHASE=//p' "$STATE" | head -1)"
+saved_next="$(sed -n 's/^NEXT_EXPECTED_STEP=//p' "$STATE" | head -1)"
+case "$saved_phase:$saved_current" in
+  WAITING_FOR_STANDALONE_INSTALL:*|*:WAITING_FOR_FIRST_STANDALONE_OPEN|'':*) ;;
+  *)
+    echo 'SHARED_UID=NO'
+    echo 'UID_ISOLATION=PASS'
+    echo "RESUME_PHASE=${saved_phase:-UNKNOWN}"
+    echo "CURRENT_PHASE=${saved_current:-UNKNOWN}"
+    echo "NEXT_EXPECTED_STEP=${saved_next:-UNKNOWN}"
+    exit 0
+    ;;
+esac
+
+write_state WAITING_FOR_FIRST_STANDALONE_OPEN UID_ISOLATION_PASS \
+  USER_OPENS_STANDALONE_X11 "$termux_uid" "$x11_uid"
+echo 'SHARED_UID=NO'
+echo 'UID_ISOLATION=PASS'
+echo 'NEXT_EXPECTED_STEP=USER_OPENS_STANDALONE_X11'

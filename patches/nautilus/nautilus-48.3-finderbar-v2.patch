@@ -1,0 +1,372 @@
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -245,6 +245,12 @@
+     guint floating_bar_set_passthrough_timeout_id;
+     GtkWidget *floating_bar;
+ 
++    /* Finder-style persistent status bar */
++    GtkWidget *finder_items_label;
++    GtkWidget *finder_free_space_label;
++    GtkWidget *finder_zoom_scale;
++    gboolean finder_zoom_syncing;
++
+     /* Toolbar menu */
+     NautilusToolbarMenuSections *toolbar_menu_sections;
+ 
+@@ -301,6 +307,7 @@
+ static void     schedule_update_context_menus (NautilusFilesView *view);
+ static void     remove_update_context_menus_timeout_callback (NautilusFilesView *view);
+ static void     schedule_update_status (NautilusFilesView *view);
++static void     update_zoom_actions_state (NautilusFilesView *self);
+ static void     remove_update_status_idle_callback (NautilusFilesView *view);
+ static void     reset_update_interval (NautilusFilesView *view);
+ static void     schedule_idle_display_of_pending_files (NautilusFilesView *view);
+@@ -368,6 +375,150 @@
+     return list != NULL && list->next == NULL;
+ }
+ 
++static void
++finder_bar_update_zoom (NautilusFilesView *self)
++{
++    NautilusFilesViewPrivate *priv = nautilus_files_view_get_instance_private (self);
++
++    if (priv->finder_zoom_scale == NULL || priv->list_base == NULL)
++    {
++        return;
++    }
++
++    NautilusViewInfo view_info = nautilus_list_base_get_view_info (priv->list_base);
++    gint zoom_level = nautilus_list_base_get_zoom_level (priv->list_base);
++    gboolean supported = view_info.zoom_level_min < view_info.zoom_level_max;
++
++    priv->finder_zoom_syncing = TRUE;
++    gtk_range_set_range (GTK_RANGE (priv->finder_zoom_scale),
++                         view_info.zoom_level_min,
++                         view_info.zoom_level_max);
++    gtk_range_set_increments (GTK_RANGE (priv->finder_zoom_scale), 1, 1);
++    gtk_range_set_round_digits (GTK_RANGE (priv->finder_zoom_scale), 0);
++    gtk_range_set_value (GTK_RANGE (priv->finder_zoom_scale), zoom_level);
++    priv->finder_zoom_syncing = FALSE;
++
++    gtk_widget_set_sensitive (priv->finder_zoom_scale, supported);
++}
++
++static void
++finder_bar_update (NautilusFilesView *self)
++{
++    NautilusFilesViewPrivate *priv = nautilus_files_view_get_instance_private (self);
++    g_autolist (NautilusFile) selection = NULL;
++    g_autofree gchar *items_text = NULL;
++    g_autofree gchar *free_space = NULL;
++    guint total = 0;
++    guint selected = 0;
++    guint64 selected_size = 0;
++    gboolean selected_size_known = TRUE;
++
++    if (priv->finder_items_label == NULL)
++    {
++        return;
++    }
++
++    if (priv->model != NULL)
++    {
++        total = g_list_model_get_n_items (G_LIST_MODEL (priv->model));
++        selection = nautilus_view_get_selection (NAUTILUS_VIEW (self));
++        selected = g_list_length (selection);
++    }
++
++    if (selected == 0)
++    {
++        items_text = g_strdup_printf (ngettext ("%'u item", "%'u items", total), total);
++    }
++    else
++    {
++        items_text = g_strdup_printf (ngettext ("%'u of %'u item selected",
++                                                "%'u of %'u items selected",
++                                                selected),
++                                      selected, total);
++
++        for (GList *l = selection; l != NULL; l = l->next)
++        {
++            NautilusFile *file = l->data;
++
++            if (nautilus_file_is_directory (file) || nautilus_file_can_get_size (file))
++            {
++                selected_size_known = FALSE;
++                break;
++            }
++            selected_size += nautilus_file_get_size (file);
++        }
++
++        if (selected_size_known)
++        {
++            g_autofree gchar *size = g_format_size (selected_size);
++            gchar *with_size = g_strdup_printf ("%s — %s", items_text, size);
++
++            g_free (items_text);
++            items_text = with_size;
++        }
++    }
++
++    gtk_label_set_text (GTK_LABEL (priv->finder_items_label), items_text);
++
++    if (priv->directory_as_file != NULL)
++    {
++        /* This existing Nautilus API is cached, rate-limited and asynchronous.
++         * Its completion emits ::changed, which schedules the next update. */
++        free_space = nautilus_file_get_volume_free_space (priv->directory_as_file);
++    }
++    gtk_label_set_text (GTK_LABEL (priv->finder_free_space_label),
++                        free_space != NULL ? free_space : "");
++
++    finder_bar_update_zoom (self);
++}
++
++static void
++finder_zoom_value_changed (GtkRange          *range,
++                           NautilusFilesView *self)
++{
++    NautilusFilesViewPrivate *priv = nautilus_files_view_get_instance_private (self);
++
++    if (priv->finder_zoom_syncing || priv->list_base == NULL)
++    {
++        return;
++    }
++
++    NautilusViewInfo view_info = nautilus_list_base_get_view_info (priv->list_base);
++    gint requested = CLAMP ((gint) gtk_range_get_value (range),
++                            view_info.zoom_level_min,
++                            view_info.zoom_level_max);
++
++    if (requested != nautilus_list_base_get_zoom_level (priv->list_base))
++    {
++        nautilus_list_base_set_zoom_level (priv->list_base, requested);
++        update_zoom_actions_state (self);
++    }
++}
++
++static void
++finder_zoom_notify (GObject            *object,
++                    GParamSpec         *pspec,
++                    NautilusFilesView *self)
++{
++    (void) object;
++    (void) pspec;
++    finder_bar_update_zoom (self);
++}
++
++static void
++finder_model_items_changed (GListModel        *model,
++                            guint              position,
++                            guint              removed,
++                            guint              added,
++                            NautilusFilesView *self)
++{
++    (void) model;
++    (void) position;
++    (void) removed;
++    (void) added;
++    finder_bar_update (self);
++}
++
+ /*
+  * Floating Bar code
+  */
+@@ -786,6 +937,7 @@
+                   gboolean           all_files_seen)
+ {
+     update_cut_status (self);
++    finder_bar_update (self);
+ }
+ 
+ /**
+@@ -3374,6 +3526,9 @@
+     g_signal_connect_object (priv->list_base, "popup-selection-context-menu",
+                              G_CALLBACK (on_popup_selection_context_menu), self,
+                              G_CONNECT_DEFAULT);
++    g_signal_connect_object (priv->list_base, "notify::icon-size",
++                             G_CALLBACK (finder_zoom_notify), self,
++                             G_CONNECT_DEFAULT);
+ 
+     if (NAUTILUS_IS_LIST_VIEW (priv->list_base))
+     {
+@@ -3386,6 +3541,7 @@
+     }
+ 
+     nautilus_list_base_add_overlay (priv->list_base, priv->empty_view_page);
++    finder_bar_update_zoom (self);
+ }
+ 
+ static void
+@@ -8709,6 +8865,7 @@
+     view = NAUTILUS_FILES_VIEW (data);
+     priv = nautilus_files_view_get_instance_private (view);
+     nautilus_files_view_display_selection_info (view);
++    finder_bar_update (view);
+     priv->update_status_idle_id = 0;
+     return FALSE;
+ }
+@@ -8773,6 +8930,7 @@
+ 
+     nautilus_files_view_update_actions_state (view);
+     schedule_update_context_menus (view);
++    finder_bar_update (view);
+ }
+ 
+ static void
+@@ -9626,6 +9784,9 @@
+                              G_CONNECT_DEFAULT);
+ 
+     priv->model = nautilus_view_model_new (use_single_selection);
++    g_signal_connect_object (priv->model, "items-changed",
++                             G_CALLBACK (finder_model_items_changed), self,
++                             G_CONNECT_DEFAULT);
+     g_object_bind_property (priv->slot, "filter",
+                             priv->model, "filter",
+                             G_BINDING_SYNC_CREATE);
+@@ -9766,6 +9927,9 @@
+ 
+     gtk_widget_class_bind_template_child_private (widget_class, NautilusFilesView, overlay);
+     gtk_widget_class_bind_template_child_private (widget_class, NautilusFilesView, floating_bar);
++    gtk_widget_class_bind_template_child_private (widget_class, NautilusFilesView, finder_items_label);
++    gtk_widget_class_bind_template_child_private (widget_class, NautilusFilesView, finder_free_space_label);
++    gtk_widget_class_bind_template_child_private (widget_class, NautilusFilesView, finder_zoom_scale);
+ 
+     /* See also the global accelerators in init() in addition to all the local
+      * ones defined below.
+@@ -9852,6 +10016,11 @@
+     g_type_ensure (NAUTILUS_TYPE_FLOATING_BAR);
+     gtk_widget_init_template (GTK_WIDGET (view));
+ 
++    g_signal_connect (priv->finder_zoom_scale,
++                      "value-changed",
++                      G_CALLBACK (finder_zoom_value_changed),
++                      view);
++
+     g_signal_connect (priv->floating_bar,
+                       "stop",
+                       G_CALLBACK (floating_bar_stop_cb),
+@@ -10058,6 +10227,7 @@
+      * actions and visible-columns). At the time of writing, there is no reason
+      * to also update context menus. */
+     nautilus_files_view_update_actions_state (self);
++    finder_bar_update (self);
+ }
+ 
+ NautilusFilesView *
+--- a/src/resources/ui/nautilus-files-view.ui
++++ b/src/resources/ui/nautilus-files-view.ui
+@@ -3,17 +3,86 @@
+   <requires lib="gtk" version="4.0"/>
+   <template class="NautilusFilesView" parent="AdwBin">
+     <child>
+-      <object class="GtkOverlay" id="overlay">
+-        <property name="hexpand">True</property>
+-        <property name="vexpand">True</property>
+-        <child type="overlay">
+-          <object class="NautilusFloatingBar" id="floating_bar">
+-            <property name="halign">end</property>
+-            <property name="valign">end</property>
+-            <property name="spacing">8</property>
+-            <binding name="show-spinner">
+-              <lookup name="loading">NautilusFilesView</lookup>
+-            </binding>
++      <object class="GtkBox">
++        <property name="orientation">vertical</property>
++        <child>
++          <object class="GtkOverlay" id="overlay">
++            <property name="hexpand">True</property>
++            <property name="vexpand">True</property>
++            <child type="overlay">
++              <object class="NautilusFloatingBar" id="floating_bar">
++                <property name="halign">end</property>
++                <property name="valign">end</property>
++                <property name="spacing">8</property>
++                <binding name="show-spinner">
++                  <lookup name="loading">NautilusFilesView</lookup>
++                </binding>
++              </object>
++            </child>
++          </object>
++        </child>
++        <child>
++          <object class="GtkCenterBox" id="finder_bar">
++            <property name="margin-start">8</property>
++            <property name="margin-end">8</property>
++            <property name="margin-top">2</property>
++            <property name="margin-bottom">2</property>
++            <style>
++              <class name="toolbar"/>
++            </style>
++            <child type="start">
++              <object class="GtkLabel" id="finder_items_label">
++                <property name="xalign">0</property>
++                <property name="ellipsize">end</property>
++                <property name="single-line-mode">True</property>
++              </object>
++            </child>
++            <child type="center">
++              <object class="GtkLabel" id="finder_free_space_label">
++                <property name="xalign">0.5</property>
++                <property name="single-line-mode">True</property>
++                <style>
++                  <class name="dim-label"/>
++                </style>
++              </object>
++            </child>
++            <child type="end">
++              <object class="GtkBox">
++                <property name="spacing">2</property>
++                <child>
++                  <object class="GtkButton">
++                    <property name="label">−</property>
++                    <property name="tooltip-text" translatable="yes">Zoom Out</property>
++                    <property name="action-name">view.zoom-out</property>
++                    <property name="valign">center</property>
++                    <style>
++                      <class name="flat"/>
++                    </style>
++                  </object>
++                </child>
++                <child>
++                  <object class="GtkScale" id="finder_zoom_scale">
++                    <property name="width-request">104</property>
++                    <property name="draw-value">False</property>
++                    <property name="digits">0</property>
++                    <property name="valign">center</property>
++                    <property name="hexpand">False</property>
++                    <property name="tooltip-text" translatable="yes">Icon Size</property>
++                  </object>
++                </child>
++                <child>
++                  <object class="GtkButton">
++                    <property name="label">+</property>
++                    <property name="tooltip-text" translatable="yes">Zoom In</property>
++                    <property name="action-name">view.zoom-in</property>
++                    <property name="valign">center</property>
++                    <style>
++                      <class name="flat"/>
++                    </style>
++                  </object>
++                </child>
++              </object>
++            </child>
+           </object>
+         </child>
+       </object>
+--- a/po/es.po
++++ b/po/es.po
+@@ -1635,6 +1635,13 @@
+ msgstr[0] "%u elemento"
+ msgstr[1] "%u elementos"
+ 
++#: src/nautilus-files-view.c
++#, c-format
++msgid "%'u of %'u item selected"
++msgid_plural "%'u of %'u items selected"
++msgstr[0] "%u de %u elemento seleccionado"
++msgstr[1] "%u de %u elementos seleccionados"
++
+ # libnautilus-private/nautilus-file.c:2595
+ #: src/nautilus-file.c:6259
+ #, c-format

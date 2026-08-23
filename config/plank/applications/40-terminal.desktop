@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Terminal
+Icon=/data/data/com.termux/files/home/MacDesk-V6/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/terminal.svg
+Exec=xfce4-terminal
+StartupWMClass=xfce4-terminal
+Terminal=false
+NoDisplay=true

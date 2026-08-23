@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Plank
+Comment=MacDesk V6 application dock
+Exec=plank --name dock1
+OnlyShowIn=XFCE;
+StartupNotify=false
+Terminal=false
+X-GNOME-Autostart-enabled=true

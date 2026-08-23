@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
+export LANG="${LANG:-es_MX.UTF-8}"
+export LC_ALL="${LC_ALL:-$LANG}"
+export GSK_RENDERER=cairo
+export GDK_DISABLE=gl,vulkan
+export LIBGL_ALWAYS_SOFTWARE=true
+export GALLIUM_DRIVER=llvmpipe
+export GTK_A11Y=none
+unset LD_LIBRARY_PATH LIBGL_DRIVERS_PATH MESA_GL_VERSION_OVERRIDE VTEST_SOCKET_NAME
+
+exec /usr/libexec/org.gnome.NautilusPreviewer "$@"
