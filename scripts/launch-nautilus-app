@@ -1,0 +1,81 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="${MACDESK_BASE:-$HOME/MacDesk-V6}"
+STATE="$BASE/state"
+LOGS="$BASE/logs"
+PREFIX=/data/data/com.termux/files/usr
+DISPLAY_NUM="${MACDESK_APPS_DISPLAY:-:3}"
+DISPLAY_ID="${DISPLAY_NUM#:}"
+XSOCK="$PREFIX/tmp/.X11-unix/X$DISPLAY_ID"
+
+mkdir -p "$STATE" "$LOGS"
+
+find_x11_pid() {
+  local proc cmd
+  for proc in /proc/[0-9]*/cmdline; do
+    [ -r "$proc" ] || continue
+    cmd="$(tr '\0' ' ' < "$proc" 2>/dev/null || true)"
+    case "$cmd" in
+      *"termux-x11 com.termux.x11 $DISPLAY_NUM "*)
+        proc="${proc#/proc/}"
+        printf '%s\n' "${proc%/cmdline}"
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+if [ -f "$STATE/nautilus-app.pid" ] && kill -0 "$(<"$STATE/nautilus-app.pid")" 2>/dev/null; then
+  echo "NAUTILUS_APP=ALREADY_RUNNING"
+  echo "DISPLAY=$DISPLAY_NUM"
+  exit 0
+fi
+
+x11_pid="$(find_x11_pid || true)"
+if [ -z "$x11_pid" ]; then
+  [ ! -e "$XSOCK" ] || rm -f "$XSOCK"
+  setsid termux-x11 "$DISPLAY_NUM" -ac >"$LOGS/apps-x11.log" 2>&1 &
+  x11_pid=$!
+  echo "$x11_pid" >"$STATE/apps-x11.pid"
+fi
+
+for _ in $(seq 1 80); do
+  [ -S "$XSOCK" ] && break
+  sleep .1
+done
+
+if [ ! -S "$XSOCK" ]; then
+  echo "APPS_X11=FAIL"
+  exit 20
+fi
+
+# M0 deliberately launches no desktop environment, window manager, dock,
+# compositor, or Android Termux:X11 activity. Nautilus is the only GUI client.
+# A private D-Bus session prevents an existing XFCE Nautilus instance on :2
+# from absorbing this launch.
+setsid proot-distro login debian --shared-tmp \
+  -e DISPLAY="$DISPLAY_NUM" \
+  -e XDG_SESSION_TYPE=x11 \
+  -e XDG_RUNTIME_DIR=/tmp/runtime-macdesk-apps \
+  -e LANG=es_MX.UTF-8 \
+  -e LC_ALL=es_MX.UTF-8 \
+  -- sh -lc "mkdir -p /tmp/runtime-macdesk-apps && chmod 700 /tmp/runtime-macdesk-apps; exec dbus-run-session -- '$BASE/scripts/launch-nautilus' --new-window" \
+  >"$LOGS/nautilus-app.log" 2>&1 &
+
+guest_pid=$!
+echo "$guest_pid" >"$STATE/nautilus-app.pid"
+echo "$DISPLAY_NUM" >"$STATE/apps-display"
+
+sleep 1
+if ! kill -0 "$guest_pid" 2>/dev/null; then
+  echo "NAUTILUS_APP=FAIL"
+  tail -n 80 "$LOGS/nautilus-app.log" 2>/dev/null || true
+  exit 21
+fi
+
+echo "APPS_X11=PASS PID=$x11_pid"
+echo "NAUTILUS_APP=PASS PID=$guest_pid"
+echo "DISPLAY=$DISPLAY_NUM"
+echo "DESKTOP_ENVIRONMENT=NONE"
