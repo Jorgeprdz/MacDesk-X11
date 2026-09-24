@@ -1,0 +1,35 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="${MACDESK_BASE:-$HOME/MacDesk-V6}"
+STATE="$BASE/state"
+PREFIX=/data/data/com.termux/files/usr
+DISPLAY_NUM="${MACDESK_APPS_DISPLAY:-:3}"
+DISPLAY_ID="${DISPLAY_NUM#:}"
+XSOCK="$PREFIX/tmp/.X11-unix/X$DISPLAY_ID"
+
+stop_pid_file() {
+  local file="$1"
+  if [ -f "$file" ]; then
+    local pid
+    pid="$(cat "$file" 2>/dev/null || true)"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      for _ in $(seq 1 30); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep .1
+      done
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
+    rm -f "$file"
+  fi
+}
+
+stop_pid_file "$STATE/nautilus-app.pid"
+stop_pid_file "$STATE/apps-x11.pid"
+
+[ ! -S "$XSOCK" ] || rm -f "$XSOCK"
+rm -f "$STATE/apps-display"
+
+echo "NAUTILUS_APP=STOPPED"
+echo "DISPLAY=$DISPLAY_NUM"
