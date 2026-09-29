@@ -200,6 +200,11 @@ rm -f "$ROOT/state/session-check.env"
   mv "$tmp" "$check"
   if [ "$x11:$dbus:$xfconf:$session:$wm:$panel" != PASS:PASS:PASS:PASS:PASS:PASS ]; then
     printf 'XFCE startup health check failed (attempts=%s)\n' "$attempt" >>"$ROOT/logs/startxfce4.log"
+  elif command -v python3 >/dev/null 2>&1 && [ -f "$ROOT/scripts/macdesk-smart" ]; then
+    # Optional shared core inherits the authoritative session bus. Its failure
+    # never changes the successful desktop health result above.
+    python3 "$ROOT/scripts/macdesk-smart" install >/dev/null 2>&1 || true
+    exec python3 "$ROOT/scripts/macdesk-smart" core >/dev/null 2>&1
   fi
 ) &
 

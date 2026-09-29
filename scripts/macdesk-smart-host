@@ -1,0 +1,17 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Termux dispatcher: CLI reaches the single guest core over a shared Unix socket.
+set -euo pipefail
+base="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+case "$base/" in "$HOME/"*) guest="/root/${base#"$HOME"/}";; *) exit 1;; esac
+case "${1:-}" in
+  open-android|share)
+    # Android file provider belongs to Termux, not the guest.
+    action="$1"; shift
+    [ "$#" -eq 1 ] || exit 2
+    if [ "$action" = share ]; then exec termux-open --send "$1"; fi
+    case "$1" in https://*|http://*) exec termux-open-url "$1";;
+      *) exec termux-open --view "$1";; esac ;;
+esac
+exec proot-distro login debian --shared-home --shared-tmp \
+  -e DISPLAY=:2 \
+  -- python3 "$guest/scripts/macdesk-smart" "$@"

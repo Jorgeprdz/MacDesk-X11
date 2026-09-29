@@ -2,6 +2,10 @@
 set -euo pipefail
 
 BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+case "${1:-}" in
+  diagnostics|mode|display|memory|snap|quicklook|open-android|share|storage|android-status|event|status)
+    exec "$BASE/scripts/macdesk-smart-host" "$@" ;;
+esac
 STATE="$BASE/state"
 LOGS="$BASE/logs"
 DISPLAY_NUM=:2

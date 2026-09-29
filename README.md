@@ -21,6 +21,19 @@ See [Android process recovery](docs/ANDROID-PROCESS-RECOVERY.md) and
 [remaining smart-desktop scope](docs/SMART-DESKTOP-SCOPE.md). The older hardware,
 UID, rendering and resolution claims below are historical, not current evidence.
 
+## Smart desktop additions (2026-09-29)
+
+A single optional Python core now provides reversible PHONE/TABLET/DESKTOP/REMOTE
+profiles, shared display context, conservative Android visibility detection and
+memory trimming of its own preview helpers. Snap reuses xfwm4 plus on-demand
+layouts; bounded Quick Look reuses installed GJS/Evince/GStreamer/libarchive.
+Android open/share and storage links reuse Termux tools, and clipboard remains
+Termux:X11's native integration. No desktop packages were added.
+
+Read [commands, validation and known gaps](docs/SMART-DESKTOP.md) before treating
+this as accepted on hardware. Physical DeX, Super keyboard behavior, full
+clipboard/VNC coverage and whole-session near-zero idle CPU remain unverified.
+
 ## Historical acceptance (2026-08-21)
 
 Recorded status: **daily-computer and bug-resolution PASS**.

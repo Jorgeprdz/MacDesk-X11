@@ -1,0 +1,51 @@
+{
+  "smart-baseline": {
+    "seconds": 15.149881712999559,
+    "processes": 12,
+    "rss_kib": 266624,
+    "cpu_percent": 3.168341569215881,
+    "note": "Guest XFCE descendants, RSS sum includes shared pages; excludes Android X11 and exited short-lived helpers",
+    "core_samples": []
+  },
+  "smart-final-idle": {
+    "seconds": 15.12757436999982,
+    "processes": 12,
+    "rss_kib": 123936,
+    "cpu_percent": 2.511969141289401,
+    "note": "Guest XFCE descendants, RSS sum includes shared pages; excludes Android X11 and exited short-lived helpers",
+    "core_samples": [
+      {
+        "name": "python3",
+        "rss_kib": 14340
+      }
+    ]
+  },
+  "smart-final-core-idle": {
+    "seconds": 15.135764837999886,
+    "processes": 14,
+    "rss_kib": 371576,
+    "cpu_percent": 11.628087637707875,
+    "note": "Guest XFCE descendants, RSS sum includes shared pages; excludes Android X11 and exited short-lived helpers",
+    "core_samples": [
+      {
+        "name": "python3",
+        "rss_kib": 19944,
+        "cpu_percent": 0.0
+      }
+    ]
+  },
+  "smart-post-trim-idle": {
+    "seconds": 15.123507805999907,
+    "processes": 12,
+    "rss_kib": 295840,
+    "cpu_percent": 2.7771334890532113,
+    "note": "Guest XFCE descendants, RSS sum includes shared pages; excludes Android X11 and exited short-lived helpers",
+    "core_samples": [
+      {
+        "name": "python3",
+        "rss_kib": 20416,
+        "cpu_percent": 0.0
+      }
+    ]
+  }
+}

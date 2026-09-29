@@ -137,6 +137,7 @@ if ! vnc_start_input_bridges; then
 fi
 
 echo 'MACDESK_VNC=RUNNING'
+"$(dirname -- "$0")/macdesk-smart-host" event remote-on >/dev/null 2>&1 || true
 echo "VNC_PID=$pid"
 echo "DISPLAY=$display"
 echo "HOST=$VNC_HOST"

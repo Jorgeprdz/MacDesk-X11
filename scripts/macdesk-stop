@@ -5,6 +5,12 @@ BASE="$HOME/MacDesk-V6"
 STATE="$BASE/state"
 PREFIX=/data/data/com.termux/files/usr
 
+# Ask the optional core to restore its own deltas while the XFCE bus is alive.
+# Failure cannot prevent the existing owned-session shutdown path.
+if [ -S "$HOME/.config/macdesk/runtime/core.sock" ] && [ -x "$BASE/scripts/macdesk-smart-host" ]; then
+  timeout 8 "$BASE/scripts/macdesk-smart-host" stop >/dev/null 2>&1 || true
+fi
+
 process_identity() {
   local pid="$1" stat
   [ -r "/proc/$pid/stat" ] || return 1

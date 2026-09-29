@@ -78,14 +78,19 @@ x11_apply_keyboard_preferences() {
 
 x11_detect_dex_display() {
   local display
-  if [ -n "${DEX_DISPLAY_ID:-}" ]; then
-    printf '%s\n' "$DEX_DISPLAY_ID"
-    return 0
-  fi
   x11_adb_ready || return 1
-  display="$("$ADB" shell dumpsys accessibility 2>/dev/null \
-    | sed -n 's/.*Enabled features of Display \[\([1-9][0-9]*\)\].*/\1/p' \
-    | head -1 | tr -d '\r')"
+  # Only real, active Android DisplayInfo records count. The shell fallback
+  # remains usable before the optional Python guest core has started.
+  display="$("$ADB" shell dumpsys display 2>/dev/null | tr -d '\r' | awk '
+    /DisplayInfo\{/ && /displayId [0-9]+/ && /state ON/ {
+      line=$0
+      sub(/.*displayId /, "", line); sub(/[^0-9].*/, "", line)
+      if (line == "0") next
+      if ($0 ~ /DeX|[Dd]esktop/) { print line; exit }
+      if ($0 ~ /type EXTERNAL/ && external == "") external=line
+    }
+    END { if (external != "") print external }
+  ' | head -1)"
   [ -n "$display" ] || return 1
   printf '%s\n' "$display"
 }

@@ -41,3 +41,9 @@ Login Data-journal
 *.key
 id_rsa
 id_ed25519
+
+# Regenerated health reports must never be mistaken for fresh acceptance.
+state/session-check.env
+state/session-health.env
+__pycache__/
+*.pyc

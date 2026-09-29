@@ -34,6 +34,7 @@ if vnc_adb_ready && [ -n "$(vnc_listener_lines 2>/dev/null)" ]; then
 fi
 
 echo 'MACDESK_VNC=STOPPED'
+"$(dirname -- "$0")/macdesk-smart-host" event remote-off >/dev/null 2>&1 || true
 echo 'REMOTE_INPUT_BRIDGES=STOPPED'
 if display="$(vnc_detect_display 2>/dev/null)" && \
     vnc_display_is_healthy "$display" && vnc_desktop_stack_is_single; then
