@@ -4,6 +4,55 @@ Reproducible Galaxy S25 DeX desktop based on Debian, Termux:X11, XFCE, and Adren
 
 Gate order is strict: GPU -> stable desktop -> applications -> Android storage -> performance -> visuals -> physical input -> regression.
 
+## Instalación all-in-one
+
+En **Termux**, fuera de Debian/PRoot, con este repositorio en `~/MacDesk-V6`:
+
+```bash
+bash "$HOME/MacDesk-V6/install.sh"
+```
+
+Instalación desde cero con un solo comando, usando la rama de esta ampliación:
+
+```bash
+curl -fL --retry 2 https://raw.githubusercontent.com/Jorgeprdz/MacDesk-X11/feature/macos-27-lightweight/install.sh -o "$HOME/macdesk-install.sh" && bash "$HOME/macdesk-install.sh"
+```
+
+Requiere Android ARM64 y Termux con `pkg`. Prepara Debian, XFCE, Plank,
+Nautilus/Sushi, Firefox y las dependencias del núcleo; reutiliza instalaciones
+existentes y conserva cambios locales. Android pide confirmar la instalación
+del APK oficial de Termux:X11. Después ejecuta `macdesk`; para almacenamiento
+compartido, concede permiso mediante `termux-setup-storage`.
+
+`bash install.sh --plan` muestra acciones/paquetes; `--check` revisa sin instalar.
+Si MacDesk está abierto, el instalador lo deja intacto y pide volver a ejecutarlo
+tras cerrar normalmente el escritorio. No reinstala Debian ni hace reset de Git;
+tampoco reinicia sesiones o habilita VNC. Los paquetes faltantes usan las versiones de
+los repositorios configurados. No instala Chromium, LibreOffice o Mailspring:
+sus launchers existentes requieren esas aplicaciones por separado.
+
+El APK y su paquete complementario son componentes distintos, como explica la
+[instalación oficial de Termux:X11](https://github.com/termux/termux-x11#setup-instructions).
+Si ya tienes un APK con otra firma, consérvalo: el instalador no lo desinstala.
+El flujo nuevo se validó con pruebas automatizadas y auditoría del teléfono
+existente; falta probar una instalación en un dispositivo vacío.
+
+## Funcionalidades
+
+| Feature | Implementación y límites |
+| --- | --- |
+| Continuity | Clipboard nativo Termux:X11, abrir/compartir en Android, enlaces a almacenamiento y estado bajo demanda. |
+| Window Snap | Tiling/preview de xfwm4; mitades, tercios, 2×2 y selector. Super depende de resolver el conflicto de teclado existente. |
+| Quick Look | Visor GTK efímero, texto limitado, imágenes, PDF, metadata/thumbnail multimedia y listado de archivos comprimidos. SPACE de Nautilus conserva Sushi. |
+| Automatic Desktop Mode | PHONE/TABLET/DESKTOP/REMOTE, selección conservadora, override y deltas reversibles. |
+| Memory Governor | Detecta visibilidad Android; limpia únicamente helpers propios con debounce y muestra métricas. |
+| DeX Display Binding | Descubre displays dinámicamente y prefiere DeX/externo sin fijar ID ni resolución; prueba física pendiente. |
+
+Un único núcleo ligero comparte contexto; no añade Electron, Node daemon,
+servidor HTTP ni cuatro servicios independientes. Consulta [comandos, pruebas
+y limitaciones](docs/SMART-DESKTOP.md): el escritorio completo todavía no está
+certificado con CPU idle cercana a cero ni con toda la matriz de hardware.
+
 ## Recovery status (2026-09-29)
 
 Android's phantom-process trimming was confirmed as the cause of repeated
