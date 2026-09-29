@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh
+. /root/MacDesk-V6/config/gpu/env.sh
 
-base=/data/data/com.termux/files/home/MacDesk-V6
+base=/root/MacDesk-V6
 profile=/root/.config/macdesk-canva-firefox
 prefs="$base/config/applications/canva-firefox-user.js"
 user_chrome="$base/config/applications/canva-firefox-userChrome.css"

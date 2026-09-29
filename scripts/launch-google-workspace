@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-. /data/data/com.termux/files/home/MacDesk-V6/config/gpu/env.sh
+. /root/MacDesk-V6/config/gpu/env.sh
 export MOZ_X11_EGL=0
 unset MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER ZINK_DESCRIPTORS VK_DRIVER_FILES VTEST_SOCKET_NAME LD_LIBRARY_PATH LIBGL_DRIVERS_PATH MESA_GL_VERSION_OVERRIDE
 
@@ -30,7 +30,7 @@ case "$app" in
     ;;
 esac
 
-base=/data/data/com.termux/files/home/MacDesk-V6
+base=/root/MacDesk-V6
 mkdir -p "$profile" "$base/logs"
 chmod 700 "$profile"
 

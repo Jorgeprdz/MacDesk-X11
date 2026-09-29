@@ -6,7 +6,7 @@
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="image-style" type="int" value="5"/>
-          <property name="last-image" type="string" value="/data/data/com.termux/files/home/MacDesk-V6/vendor/visual-sources/GNOME-macOS-Tahoe/.config/walls/Tahoe/Tahoe-5k-light.jpg"/>
+          <property name="last-image" type="string" value="/root/MacDesk-V6/assets/wallpapers/macos27-light.svg"/>
         </property>
       </property>
     </property>

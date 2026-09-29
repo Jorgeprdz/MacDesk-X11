@@ -3,7 +3,7 @@ Version=1.0
 Type=Application
 Name=WhatsApp Web
 Comment=WhatsApp Web standalone
-Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-whatsapp
+Exec=/root/MacDesk-V6/scripts/launch-whatsapp
 Icon=whatsapp
 StartupWMClass=MacDeskWhatsApp; /Categories=/cCategories=Network;Chat;
 Terminal=false
@@ -14,8 +14,8 @@ Actions=new-window;private-window;
 
 [Desktop Action new-window]
 Name=New Window
-Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-firefox --new-window
+Exec=/root/MacDesk-V6/scripts/launch-firefox --new-window
 
 [Desktop Action private-window]
 Name=New Private Window
-Exec=/data/data/com.termux/files/home/MacDesk-V6/scripts/launch-firefox --private-window
+Exec=/root/MacDesk-V6/scripts/launch-firefox --private-window

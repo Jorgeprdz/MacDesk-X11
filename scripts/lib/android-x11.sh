@@ -63,7 +63,7 @@ x11_apply_keyboard_preferences() {
   else
     # Standalone has a different sandbox.  The companion's official helper
     # crosses that boundary without direct access to X11 private files.
-    termux-x11-preference \
+    timeout 8 termux-x11-preference \
       dexMetaKeyCapture:false \
       enableAccessibilityServiceAutomatically:false \
       pointerCapture:false \

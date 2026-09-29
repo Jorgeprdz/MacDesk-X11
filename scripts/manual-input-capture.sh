@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-out=/data/data/com.termux/files/home/MacDesk-V6/logs/manual-keyboard-input.txt
+out=/root/MacDesk-V6/logs/manual-keyboard-input.txt
 tmp="${out}.tmp.$$"
 
 printf '\033[2J\033[H'

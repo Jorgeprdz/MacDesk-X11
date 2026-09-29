@@ -5,46 +5,96 @@ BASE="$HOME/MacDesk-V6"
 STATE="$BASE/state"
 PREFIX=/data/data/com.termux/files/usr
 
-stop_pid_file() {
-  local file="$1" pid
-  [ -f "$file" ] || return 0
-  pid="$(<"$file")"
-  case "$pid" in (*[!0-9]*|'') return 0;; esac
-  kill "$pid" 2>/dev/null || true
-  for _ in $(seq 1 30); do
-    kill -0 "$pid" 2>/dev/null || return 0
-    sleep .1
-  done
-  kill -9 "$pid" 2>/dev/null || true
+process_identity() {
+  local pid="$1" stat
+  [ -r "/proc/$pid/stat" ] || return 1
+  stat=$(cat "/proc/$pid/stat") || return 1
+  stat=${stat##*) }
+  set -- $stat
+  [ "$1" != Z ] || return 1
+  printf '%s\n' "${20}"
 }
 
-# Stop only the primary Firefox instance. Standalone Firefox profiles (Canva,
-# WhatsApp, and similar apps) carry --profile and are never selected here.
-firefox_main=""
-for proc in /proc/[0-9]*/cmdline; do
-  [ -r "$proc" ] || continue
-  cmd="$(tr "\0" " " < "$proc" 2>/dev/null || true)"
-  case "$cmd" in
-    firefox-esr|firefox-esr\ *|*"/usr/lib/firefox-esr/firefox-esr"*)
-      case "$cmd" in *" -contentproc "*|*" --profile "*) continue;; esac
-      firefox_main="${proc#/proc/}"; firefox_main="${firefox_main%/cmdline}"; break;;
+owned_process() {
+  local file="$1" pid="$2" guest parent stat depth executable count
+  local -a argv=()
+  mapfile -d '' -t argv <"/proc/$pid/cmdline" 2>/dev/null || return 1
+  count=${#argv[@]}
+  [ "$count" -gt 0 ] || return 1
+  executable=${argv[0]##*/}
+  case "${file##*/}" in
+    input-guard.pid|plank-geometry-guard.pid|health-supervisor.pid)
+      local script=${file##*/}
+      script=${script%.pid}
+      [ "$script" != health-supervisor ] || script=session-health-supervisor
+      [ "$count" -eq 2 ] || return 1
+      case "$executable" in bash|sh) ;; *) return 1;; esac
+      case "${argv[1]}" in
+        "$BASE/scripts/$script"|"/root/MacDesk-V6/scripts/$script") return 0;;
+      esac ;;
+    guest.pid)
+      [ "$executable" = proot ] && [ "$count" -ge 4 ] || return 1
+      [ "${argv[count-3]}" = /bin/bash ] && [ "${argv[count-2]}" = -c ] || return 1
+      case "${argv[count-1]}" in
+        /root/MacDesk-V6/scripts/macdesk-xfce-session|/root/MacDesk-V6/scripts/session-start) return 0;;
+      esac ;;
+    session.pid)
+      [ "$executable" = xfce4-session ] || return 1
+      guest=$(cat "$STATE/guest.pid" 2>/dev/null) || return 1
+      case "$guest" in ''|*[!0-9]*) return 1;; esac
+      owned_process "$STATE/guest.pid" "$guest" || return 1
+      parent=$pid
+      for ((depth=0; depth<32; depth++)); do
+        [ "$parent" != "$guest" ] || return 0
+        [ "$parent" -gt 1 ] || return 1
+        stat=$(cat "/proc/$parent/stat" 2>/dev/null) || return 1
+        stat=${stat##*) }
+        set -- $stat
+        parent=$2
+      done ;;
+    x11.pid)
+      # app_process rewrites its whole command into argv[0] on this device.
+      case "${argv[0]}" in
+        "termux-x11 com.termux.x11 :2 -ac"|"termux-x11 com.termux.x11 :2") return 0;;
+        "termux-x11 com.termux.x11") [ "${argv[1]:-}" = :2 ] && return 0;;
+      esac ;;
+    virgl.pid)
+      [ "$executable" = virgl_test_server_android ] || return 1
+      [ "${argv[1]:-}" = --no-fork ] && [ "${argv[2]:-}" = --multi-clients ] &&
+        [ "${argv[3]:-}" = --socket-path ] && [ "${argv[4]:-}" = "$PREFIX/tmp/.virgl_test" ] && return 0 ;;
   esac
-done
-if [ -n "$firefox_main" ]; then
-  kill "$firefox_main" 2>/dev/null || true
-  for _ in $(seq 1 30); do
-    kill -0 "$firefox_main" 2>/dev/null || break
+  return 1
+}
+
+stop_pid_file() {
+  local file="$1" pid identity current
+  [ -f "$file" ] || return 0
+  pid=$(cat "$file")
+  case "$pid" in (*[!0-9]*|'') echo "Invalid PID file: $file" >&2; return 1;; esac
+  [ "$pid" -gt 1 ] && [ "$pid" != "$$" ] || return 1
+  identity=$(process_identity "$pid") || { rm -f "$file"; return 0; }
+  owned_process "$file" "$pid" || {
+    echo "Refusing unrelated process pid=$pid file=$file" >&2
+    return 1
+  }
+  current=$(process_identity "$pid") || { rm -f "$file"; return 0; }
+  [ "$identity" = "$current" ] || return 1
+  kill -TERM "$pid" 2>/dev/null || return 1
+  for _ in $(seq 1 50); do
+    current=$(process_identity "$pid") || { rm -f "$file"; return 0; }
+    [ "$identity" = "$current" ] || { rm -f "$file"; return 0; }
     sleep .1
   done
-  kill -9 "$firefox_main" 2>/dev/null || true
-fi
-stop_pid_file "$STATE/session.pid"
-stop_pid_file "$STATE/input-guard.pid"
-stop_pid_file "$STATE/plank-geometry-guard.pid"
-stop_pid_file "$STATE/health-supervisor.pid"
-stop_pid_file "$STATE/guest.pid"
-stop_pid_file "$STATE/virgl.pid"
-stop_pid_file "$STATE/x11.pid"
+  echo "Owned process did not stop: pid=$pid; state retained" >&2
+  return 1
+}
+
+# Stop the owned session. Applications exit with their PRoot session;
+# do not search and signal unrelated Firefox processes.
+# XFCE must exit before PRoot: TERM on PRoot alone does not close this session.
+for role in health-supervisor session input-guard plank-geometry-guard guest virgl x11; do
+  stop_pid_file "$STATE/$role.pid" || exit 1
+done
 
 # Remove a socket only when no matching live listener remains. In particular,
 # an already-running Termux:X11 may have been adopted by V6 while the recorded
@@ -69,4 +119,5 @@ fi
 rm -f "$STATE/session.pid" "$STATE/input-guard.pid" \
   "$STATE/plank-geometry-guard.pid" "$STATE/health-supervisor.pid"
 
+rm -f "$STATE/session-check.env" "$STATE/session-health.env"
 echo MACDESK_V6=STOPPED

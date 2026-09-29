@@ -4,7 +4,26 @@ Reproducible Galaxy S25 DeX desktop based on Debian, Termux:X11, XFCE, and Adren
 
 Gate order is strict: GPU -> stable desktop -> applications -> Android storage -> performance -> visuals -> physical input -> regression.
 
-Current status (2026-08-21): **daily-computer and bug-resolution PASS**.
+## Recovery status (2026-09-29)
+
+Android's phantom-process trimming was confirmed as the cause of repeated
+Codex and desktop SIGKILL events. The device now has
+`settings_enable_monitor_phantom_procs=false`. Normal XFCE startup, an owned
+stop/restart, and a real X11 test window pass in `SAFE_FALLBACK` software graphics.
+Shutdown validates process ownership; new launches require fresh health results.
+
+This is a recovery baseline, **not a new full-product acceptance**. External DeX,
+physical input, application coverage, and the six smart-desktop additions still
+need their current-device acceptance. D-Bus clients in a separate PRoot session
+remain unable to authenticate to the desktop bus; in-session checks pass.
+
+See [Android process recovery](docs/ANDROID-PROCESS-RECOVERY.md) and
+[remaining smart-desktop scope](docs/SMART-DESKTOP-SCOPE.md). The older hardware,
+UID, rendering and resolution claims below are historical, not current evidence.
+
+## Historical acceptance (2026-08-21)
+
+Recorded status: **daily-computer and bug-resolution PASS**.
 Debian, XFCE/XFWM, host VirGL, the DeX keyboard contract, dynamic display
 recovery, Chromium app keyboard bridges, Plank geometry recovery, and the
 in-session health monitor are installed and survived a full phone reboot.

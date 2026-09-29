@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+prepare_macdesk_environment() {
+  MACDESK_ROOT="${MACDESK_ROOT:-$(cd -- "$script_dir/.." && pwd)}"
+  export MACDESK_ROOT="$MACDESK_ROOT"
+  export HOME=/root
+  export USER="$(id -un)"
+  export LOGNAME="$USER"
+  export TMPDIR=/tmp
+  export DISPLAY="${DISPLAY:-:2}"
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  export XDG_CONFIG_HOME="$HOME/.config"
+  export XDG_CACHE_HOME="$HOME/.cache"
+  export XDG_DATA_HOME="$HOME/.local/share"
+  export XDG_RUNTIME_DIR="$TMPDIR/macdesk-runtime-$(id -u)"
+  export XDG_SESSION_TYPE=x11
+  export XDG_CURRENT_DESKTOP=XFCE
+  export LANG=C.UTF-8
+  unset LC_ALL
+  export PULSE_SERVER="${PULSE_SERVER:-127.0.0.1:4713}"
+
+  mkdir -p "$TMPDIR" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" \
+    "$XDG_DATA_HOME" "$XDG_RUNTIME_DIR" "$MACDESK_ROOT/logs" "$MACDESK_ROOT/state"
+  chmod 700 "$XDG_RUNTIME_DIR"
+  local runtime_owner runtime_mode
+  runtime_owner="$(stat -c %u "$XDG_RUNTIME_DIR")"
+  runtime_mode="$(stat -c %a "$XDG_RUNTIME_DIR")"
+  [[ "$runtime_owner" == "$(id -u)" && "$runtime_mode" == 700 ]] || {
+    printf 'XDG_RUNTIME_DIR invalid: path=%s owner=%s mode=%s expected_owner=%s mode=700\n' \
+      "$XDG_RUNTIME_DIR" "$runtime_owner" "$runtime_mode" "$(id -u)" >&2
+    return 1
+  }
+}
+
+prepare_macdesk_environment
+
+# Keep the former experimental profile intact for a separate GPU investigation.
+. "$MACDESK_ROOT/config/gpu/profiles/safe-graphics.sh"
+
+{
+  printf 'MACDESK_ROOT=%s\n' "$MACDESK_ROOT"
+  for name in DISPLAY HOME USER LOGNAME PATH TMPDIR XDG_RUNTIME_DIR \
+    XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME DBUS_SESSION_BUS_ADDRESS \
+    PULSE_SERVER GALLIUM_DRIVER MESA_LOADER_DRIVER_OVERRIDE LIBGL_DRIVERS_PATH \
+    VK_ICD_FILENAMES VK_DRIVER_FILES MESA_VK_WSI_PRESENT_MODE ZINK_DESCRIPTORS \
+    LIBGL_ALWAYS_SOFTWARE MACDESK_GPU_PROFILE; do
+    if [[ -v $name ]]; then printf '%s=%s\n' "$name" "${!name}"
+    else printf '%s=<UNSET>\n' "$name"; fi
+  done
+} >"$MACDESK_ROOT/logs/xfce-environment-before-dbus.log"
+
+# The one session bus is created here, only after the complete XDG environment
+# and its private runtime directory are valid.
+printf 'METHOD=startxfce4 DBUS_SESSION_BUS_ADDRESS=<created by dbus-run-session>\n' \
+  >>"$MACDESK_ROOT/logs/macdesk-launcher.log"
+exec /usr/bin/dbus-run-session -- /usr/bin/bash "$MACDESK_ROOT/scripts/session-start" \
+  >>"$MACDESK_ROOT/logs/dbus-session.log" 2>&1
