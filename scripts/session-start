@@ -42,6 +42,7 @@ mkdir -p /root/.config/gtk-4.0
 getent group 1023 >/dev/null 2>&1 || groupadd -g 1023 android_media_rw
 id macdesk >/dev/null 2>&1 || useradd -m -u 1000 -g 1023 -s /bin/sh macdesk
 install -m 755 $ROOT/scripts/launch-nautilus /usr/local/bin/macdesk-nautilus
+install -m 755 $ROOT/scripts/launch-wps /usr/local/bin/macdesk-wps
 install -m 755 $ROOT/assets/nautilus/macdesk-nautilus-skip-root-delay.so /usr/local/lib/macdesk-nautilus-skip-root-delay.so
 [ -e /mnt/s25 ] || ln -s /sdcard /mnt/s25
 cp $ROOT/config/storage/gtk-bookmarks /root/.config/gtk-3.0/bookmarks
@@ -120,7 +121,7 @@ mkdir -p "$plank_launchers" "$plank_themes" /root/.local/share/applications
 cp $ROOT/config/plank/applications/*.desktop /root/.local/share/applications/
 # These launchers are intentionally retired from the curated dock. Removing
 # only their live .dockitem files prevents Plank from auto-pinning them again.
-for retired in 05-applications 08-desktop 20-zen 30-chromium 50-libreoffice 60-gnome-software; do
+for retired in 05-applications 08-desktop 20-zen 27-chatgpt 28-canva 29-google-docs 30-google-sheets 30-chromium 50-libreoffice 60-gnome-software; do
   rm -f "$plank_launchers/$retired.dockitem"
 done
 for theme in GoldenGate-Light GoldenGate-Dark; do
@@ -140,7 +141,7 @@ plank_schema=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
 if [ ! -e "$plank_config/.macdesk-v6-configured" ]; then
   gsettings set "$plank_schema" alignment center
   gsettings set "$plank_schema" auto-pinning false
-  gsettings set "$plank_schema" dock-items "['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '27-chatgpt.dockitem', '28-canva.dockitem', '29-google-docs.dockitem', '30-google-sheets.dockitem', '40-terminal.dockitem', '90-trash.dockitem']"
+  gsettings set "$plank_schema" dock-items "['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-wps-writer.dockitem', '31-wps-spreadsheets.dockitem', '32-wps-presentation.dockitem', '40-terminal.dockitem', '90-trash.dockitem']"
   gsettings set "$plank_schema" hide-mode none
   gsettings set "$plank_schema" icon-size 52
   gsettings set "$plank_schema" items-alignment center
@@ -153,7 +154,7 @@ if [ ! -e "$plank_config/.macdesk-v6-configured" ]; then
 fi
 # Keep the curated launcher order deterministic without changing Plank's
 # geometry, monitor, theme, or visibility preferences.
-curated_dock_items="['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '27-chatgpt.dockitem', '28-canva.dockitem', '29-google-docs.dockitem', '30-google-sheets.dockitem', '40-terminal.dockitem', '90-trash.dockitem']"
+curated_dock_items="['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-wps-writer.dockitem', '31-wps-spreadsheets.dockitem', '32-wps-presentation.dockitem', '40-terminal.dockitem', '90-trash.dockitem']"
 current_dock_items="$(gsettings get "$plank_schema" dock-items)"
 [ "$current_dock_items" = "$curated_dock_items" ] || \
   gsettings set "$plank_schema" dock-items "$curated_dock_items"
