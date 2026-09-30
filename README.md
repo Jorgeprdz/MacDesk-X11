@@ -125,6 +125,22 @@ Final evidence and the signed-off defect matrix are recorded in
 `docs/MACDESK-V6-BUG-RESOLUTION-CERTIFICATE.md`.
 # Iconos BigSur sin aparecer en la galería Android
 
+## Recuperar fondos XFCE y cursores
+
+`bash scripts/restore-xfce-assets.sh` recupera los 11 fondos oficiales de XFCE 4.20
+y cursores Adwaita de Debian 13. Requiere `curl`, `dpkg-deb` y `sha256sum`
+(en Termux: `pkg install curl dpkg coreutils`). Descarga los paquetes oficiales,
+comprueba SHA256 y extrae los recursos sin instalar paquetes del sistema.
+Guarda fondos en `~/.local/share/backgrounds/xfce` y cursores en
+`~/.local/share/icons/MacDesk-Adwaita`, con `.nomedia` antes de copiar imágenes.
+Conserva las licencias, no sobrescribe fondos existentes ni modifica BigSur.
+En XFCE abre Configuración del escritorio → Fondo → Otra carpeta y pega
+`/root/.local/share/backgrounds/xfce` (MacDesk con HOME compartido).
+El cursor se selecciona al iniciar XFCE mediante un autostart efímero.
+Para dejar de imponerlo, elimina
+`~/.config/autostart/macdesk-restored-cursor.desktop` y elige otro en
+Ratón y panel táctil → Tema. El script no reinicia sesiones.
+
 Instalador del [tema BigSur de yeyushengfan258](https://www.opendesktop.org/p/1399044).
 Ejecuta en **Termux** (no dentro de `/sdcard` como HOME):
 
