@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PREFIX=/data/data/com.termux/files/usr
 STATE="$BASE/state"
 LOGS="$BASE/logs"
 FIFO="$STATE/host-app.fifo"
