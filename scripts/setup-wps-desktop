@@ -1,0 +1,138 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+PREFIX=/data/data/com.termux/files/usr
+HOME_EXPECTED=/data/data/com.termux/files/home
+BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+DISPLAY_NUM=:2
+
+[ "${HOME:-}" = "$HOME_EXPECTED" ] || { echo 'Run this in Termux, not inside Debian/PRoot.' >&2; exit 1; }
+[ -x "$BASE/scripts/wps-host" ] || { echo 'WPS integration files are incomplete.' >&2; exit 2; }
+
+echo
+echo '╔══════════════════════════════════════════════╗'
+echo '║  MacDesk · WPS Desktop Integration Setup    ║'
+echo '╚══════════════════════════════════════════════╝'
+echo
+
+safe_link() {
+  local target="$1" link="$2"
+  if [ -L "$link" ]; then
+    ln -sfn "$target" "$link"
+  elif [ ! -e "$link" ]; then
+    ln -s "$target" "$link"
+  else
+    printf 'Preserved existing path: %s\n' "$link"
+  fi
+}
+
+echo '[1/6] Phone storage'
+if [ ! -d "$HOME/storage/shared" ]; then
+  echo 'Requesting Android shared-storage permission...'
+  termux-setup-storage >/dev/null 2>&1 || true
+  for _ in $(seq 1 20); do
+    [ -d "$HOME/storage/shared" ] && break
+    sleep 1
+  done
+fi
+mkdir -p "$HOME/Documents" "$HOME/GoogleDrive"
+if [ -d "$HOME/storage/shared" ]; then
+  safe_link "$HOME/storage/shared" "$HOME/Phone"
+  safe_link "$HOME/storage/shared" "$HOME/Documents/Phone"
+  [ ! -d "$HOME/storage/downloads" ] || safe_link "$HOME/storage/downloads" "$HOME/Documents/Phone-Downloads"
+  echo 'PHONE_STORAGE=READY'
+else
+  echo 'PHONE_STORAGE=PERMISSION_PENDING'
+  echo 'Approve the Files/Storage permission requested by Termux; rerun this setup afterward.'
+fi
+safe_link "$HOME/GoogleDrive" "$HOME/Documents/Google-Drive"
+
+echo
+echo '[2/6] Fonts'
+proot-distro login debian --shared-home --shared-tmp -- /bin/bash -s <<'GUEST'
+set -e
+export DEBIAN_FRONTEND=noninteractive
+apt-get update >/dev/null
+apt-get install -y --no-install-recommends fonts-dejavu-core fonts-liberation2 fonts-noto-core fontconfig >/dev/null
+for optional in fonts-crosextra-carlito fonts-crosextra-caladea; do
+  apt-cache show "$optional" >/dev/null 2>&1 && apt-get install -y --no-install-recommends "$optional" >/dev/null || true
+done
+dst=/root/.local/share/fonts/MacDesk
+mkdir -p "$dst"
+for source in /usr/share/fonts/truetype/dejavu /usr/share/fonts/truetype/liberation2 /usr/share/fonts/truetype/crosextra /usr/share/fonts/opentype/noto; do
+  [ ! -d "$source" ] || cp -a "$source" "$dst/"
+done
+fc-cache -f /root/.local/share/fonts >/dev/null 2>&1 || true
+GUEST
+mkdir -p "$HOME/.config/fontconfig/conf.d"
+cp "$BASE/config/fontconfig/wps-font-aliases.conf" "$HOME/.config/fontconfig/conf.d/99-macdesk-wps.conf"
+if apt-cache show fontconfig-glibc >/dev/null 2>&1; then
+  dpkg-query -W -f='${Status}' fontconfig-glibc 2>/dev/null | grep -q 'install ok installed' || pkg install -y fontconfig-glibc
+fi
+if [ -x "$PREFIX/glibc/bin/fc-cache" ] && command -v grun >/dev/null 2>&1; then
+  grun "$PREFIX/glibc/bin/fc-cache" -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
+fi
+echo 'FONTS=READY'
+
+echo
+echo '[3/6] WPS launchers and icons'
+chmod 0755 "$BASE/scripts/wps-host" "$BASE/scripts/host-app-dispatcher" "$BASE/scripts/launch-wps" "$BASE/scripts/macdesk-gdrive"
+mkdir -p "$HOME/.local/share/applications" "$HOME/.local/share/icons/hicolor/scalable/apps"
+for desktop in 30-wps-writer 31-wps-spreadsheets 32-wps-presentation; do
+  cp "$BASE/config/plank/applications/$desktop.desktop" "$HOME/.local/share/applications/$desktop.desktop"
+done
+generic="$BASE/assets/icons-clean/WhiteSur-MacDesk/apps/scalable/applications-office.svg"
+for name in macdesk-wps-writer macdesk-wps-spreadsheets macdesk-wps-presentation; do
+  cp "$generic" "$HOME/.local/share/icons/hicolor/scalable/apps/$name.svg"
+done
+proot-distro login debian --shared-home --shared-tmp -- /bin/sh -c   'update-desktop-database /root/.local/share/applications >/dev/null 2>&1 || true; gtk-update-icon-cache -f /root/.local/share/icons/hicolor >/dev/null 2>&1 || true' || true
+
+echo
+echo '[4/6] Dock'
+live_launchers="$HOME/.config/plank/dock1/launchers"
+mkdir -p "$live_launchers"
+rm -f "$live_launchers/27-chatgpt.dockitem" "$live_launchers/28-canva.dockitem"   "$live_launchers/29-google-docs.dockitem" "$live_launchers/30-google-sheets.dockitem"
+for item in 30-wps-writer 31-wps-spreadsheets 32-wps-presentation; do
+  cp "$BASE/config/plank/launchers/$item.dockitem" "$live_launchers/$item.dockitem"
+done
+bus="$(sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' "$BASE/logs/xfce-session-environment.log" 2>/dev/null | tail -1)"
+runtime="$(sed -n 's/^XDG_RUNTIME_DIR=//p' "$BASE/logs/xfce-session-environment.log" 2>/dev/null | tail -1)"
+if [ -n "$bus" ] && [ -n "$runtime" ] && [ -S "$PREFIX/tmp/.X11-unix/X2" ]; then
+  proot-distro login debian --shared-home --shared-tmp     -e DISPLAY="$DISPLAY_NUM" -e DBUS_SESSION_BUS_ADDRESS="$bus" -e XDG_RUNTIME_DIR="$runtime"     -- /bin/sh -c 'schema=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/; gsettings set "$schema" dock-items "[\x2710-nautilus.dockitem\x27, \x27mailspring-macdesk.dockitem\x27, \x2720-firefox.dockitem\x27, \x2725-whatsapp.dockitem\x27, \x2730-wps-writer.dockitem\x27, \x2731-wps-spreadsheets.dockitem\x27, \x2732-wps-presentation.dockitem\x27, \x2740-terminal.dockitem\x27, \x2790-trash.dockitem\x27]"'     >/dev/null 2>&1 && echo 'DOCK=UPDATED_LIVE' || echo 'DOCK=READY_FOR_NEXT_SESSION'
+else
+  echo 'DOCK=READY_FOR_NEXT_SESSION'
+fi
+
+echo
+echo '[5/6] File picker shortcuts'
+mkdir -p "$HOME/.config/gtk-3.0"
+cp "$BASE/config/storage/gtk-bookmarks" "$HOME/.config/gtk-3.0/bookmarks"
+echo 'WPS will see ~/Phone, ~/Documents/Phone and ~/GoogleDrive from its Linux file picker.'
+
+echo
+echo '[6/6] Host bridge and Google Drive helper'
+DISPLAY="$DISPLAY_NUM" "$BASE/scripts/host-app-dispatcher" start
+if ! command -v rclone >/dev/null 2>&1; then
+  pkg install -y rclone >/dev/null
+fi
+cat >"$PREFIX/bin/macdesk-gdrive" <<EOF
+#!$PREFIX/bin/bash
+exec "$BASE/scripts/macdesk-gdrive" "\$@"
+EOF
+chmod 0755 "$PREFIX/bin/macdesk-gdrive"
+
+echo
+echo '══════════════════════════════════════════════'
+echo 'WPS_DESKTOP=READY'
+echo 'Phone:        ~/Phone'
+echo 'Google Drive: ~/GoogleDrive (local mirror)'
+echo 'Dock:         Writer + Spreadsheets + Presentation'
+echo 'Removed dock: ChatGPT + Canva + Google Docs + Google Sheets'
+echo 'Panel/menu:   WPS apps are visible under Office'
+echo
+echo 'Google Drive needs one OAuth authorization:'
+echo '  macdesk-gdrive setup'
+echo 'Then:'
+echo '  macdesk-gdrive pull'
+echo '  macdesk-gdrive push'
+echo '══════════════════════════════════════════════'
