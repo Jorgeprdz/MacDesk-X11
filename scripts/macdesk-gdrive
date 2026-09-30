@@ -1,0 +1,62 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+REMOTE="${MACDESK_GDRIVE_REMOTE:-gdrive}"
+LOCAL="$HOME/GoogleDrive"
+
+need_rclone() {
+  command -v rclone >/dev/null 2>&1 || {
+    echo 'rclone is not installed. Run: pkg install rclone' >&2
+    exit 2
+  }
+}
+has_remote() {
+  rclone listremotes 2>/dev/null | grep -Fxq "$REMOTE:"
+}
+
+mkdir -p "$LOCAL"
+
+case "${1:-status}" in
+  setup)
+    need_rclone
+    if has_remote; then
+      echo "Google Drive remote already configured: $REMOTE:"
+      exit 0
+    fi
+    echo
+    echo "Create a Google Drive remote named '$REMOTE'."
+    echo "When rclone asks for the storage type, choose Google Drive."
+    echo "OAuth requires your approval in the browser."
+    echo
+    BROWSER=termux-open-url rclone config
+    has_remote || {
+      echo "No '$REMOTE:' remote was created. Run this setup again and use that exact name." >&2
+      exit 3
+    }
+    echo "GDRIVE=CONFIGURED remote=$REMOTE:"
+    ;;
+  pull)
+    need_rclone
+    has_remote || { echo "Run: macdesk-gdrive setup" >&2; exit 3; }
+    rclone copy "$REMOTE:" "$LOCAL" --update --create-empty-src-dirs --progress
+    ;;
+  push)
+    need_rclone
+    has_remote || { echo "Run: macdesk-gdrive setup" >&2; exit 3; }
+    rclone copy "$LOCAL" "$REMOTE:" --update --create-empty-src-dirs --progress
+    ;;
+  status)
+    need_rclone
+    echo "LOCAL=$LOCAL"
+    if has_remote; then
+      echo "REMOTE=$REMOTE:"
+      rclone about "$REMOTE:" 2>/dev/null || true
+    else
+      echo "REMOTE=NOT_CONFIGURED"
+    fi
+    ;;
+  *)
+    echo "Usage: macdesk-gdrive {setup|pull|push|status}" >&2
+    exit 1
+    ;;
+esac
