@@ -123,3 +123,23 @@ Operational commands:
 
 Final evidence and the signed-off defect matrix are recorded in
 `docs/MACDESK-V6-BUG-RESOLUTION-CERTIFICATE.md`.
+# Iconos BigSur sin aparecer en la galería Android
+
+Instalador del [tema BigSur de yeyushengfan258](https://www.opendesktop.org/p/1399044).
+Ejecuta en **Termux** (no dentro de `/sdcard` como HOME):
+
+```sh
+pkg install -y python curl && mkdir -p "$HOME/.cache/macdesk" && touch "$HOME/.cache/macdesk/.nomedia" && curl -fL --retry 2 https://raw.githubusercontent.com/Jorgeprdz/MacDesk-X11/feature/macos-27-lightweight/scripts/install-bigsur-icons.py -o "$HOME/.cache/macdesk/install-bigsur-icons.py" && python "$HOME/.cache/macdesk/install-bigsur-icons.py"
+```
+
+Para la variante oscura, vuelve a ejecutar el script con `--dark`.
+También funciona desde la terminal Linux de MacDesk con Python 3.9+.
+
+- Instala ambos temas en almacenamiento privado oculto: `~/.local/share/macdesk/icon-themes/`, enlazados desde `~/.local/share/icons/`.
+- Crea `.nomedia` antes de descargar o extraer imágenes. No copia nada a Downloads, Pictures ni `/sdcard`.
+- Conserva temas ajenos: si ya existe una carpeta BigSur no administrada por este instalador, pide renombrarla y se detiene.
+- Descarga el enlace vigente mediante la API oficial de OpenDesktop; limita tamaño, valida rutas y conserva licencias. Corrige un enlace del paquete que apunta al HOME de su autor.
+- Selecciona **BigSur** desde **XFCE → Apariencia → Iconos** para verlo ahora. Se aplica automáticamente en la próxima sesión; no reinicia XFCE ni cierra aplicaciones. La selección se guarda en `~/.config/macdesk/icon-theme` y un autostart compatible con versiones anteriores.
+- No agrega procesos residentes. Las versiones anteriores quedan conservadas en la carpeta oculta para evitar pérdida de datos.
+
+La galería puede conservar miniaturas antiguas hasta actualizar su índice; el script no borra fotos ni modifica su base de datos. Para volver a elegir libremente otro tema, elimina `~/.config/autostart/macdesk-bigsur-icons.desktop` y `~/.config/macdesk/icon-theme`, y selecciónalo en Apariencia.

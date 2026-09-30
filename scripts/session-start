@@ -77,8 +77,17 @@ if [ ! -s /root/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml ]; then
 fi
 # The installed theme is named WhiteSur-MacDesk; the former WhiteSur value had
 # no matching theme directory and caused inconsistent fallback icons.
-xfconf-query -c xsettings -p /Net/IconThemeName -s WhiteSur-MacDesk >/dev/null 2>&1 || \
-  xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s WhiteSur-MacDesk >/dev/null 2>&1
+icon_theme=WhiteSur-MacDesk
+if [ -r /root/.config/macdesk/icon-theme ]; then
+  IFS= read -r chosen_icons < /root/.config/macdesk/icon-theme || chosen_icons=
+  case "$chosen_icons" in
+    BigSur|BigSur-dark)
+      [ ! -f "/root/.local/share/icons/$chosen_icons/index.theme" ] || icon_theme="$chosen_icons"
+      ;;
+  esac
+fi
+xfconf-query -c xsettings -p /Net/IconThemeName -s "$icon_theme" >/dev/null 2>&1 || \
+  xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s "$icon_theme" >/dev/null 2>&1
 rm -f /root/.config/autostart/cairo-dock.desktop
 cp $ROOT/config/autostart/plank.desktop /root/.config/autostart/plank.desktop
 mkdir -p /usr/local/share/icons
