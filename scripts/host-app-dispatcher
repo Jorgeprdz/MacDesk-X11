@@ -1,0 +1,80 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+STATE="$BASE/state"
+LOGS="$BASE/logs"
+FIFO="$STATE/host-app.fifo"
+PIDFILE="$STATE/host-app-dispatcher.pid"
+DISPLAY_NUM="${DISPLAY:-:2}"
+
+mkdir -p "$STATE" "$LOGS"
+
+alive() {
+  local pid
+  [ -r "$PIDFILE" ] || return 1
+  pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
+start_dispatcher() {
+  if alive; then
+    printf 'HOST_APP_DISPATCHER=RUNNING PID=%s\n' "$(cat "$PIDFILE")"
+    return 0
+  fi
+  rm -f "$PIDFILE"
+  if [ -e "$FIFO" ] && [ ! -p "$FIFO" ]; then rm -f "$FIFO"; fi
+  [ -p "$FIFO" ] || mkfifo -m 600 "$FIFO"
+  setsid env DISPLAY="$DISPLAY_NUM" "$0" daemon >>"$LOGS/host-app-dispatcher.log" 2>&1 &
+  echo $! > "$PIDFILE"
+  sleep .1
+  alive || { echo 'HOST_APP_DISPATCHER=FAIL' >&2; return 1; }
+  printf 'HOST_APP_DISPATCHER=STARTED PID=%s DISPLAY=%s\n' "$(cat "$PIDFILE")" "$DISPLAY_NUM"
+}
+
+stop_dispatcher() {
+  if alive; then
+    pid="$(cat "$PIDFILE")"
+    kill -TERM "$pid" 2>/dev/null || true
+    for _ in $(seq 1 30); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep .1
+    done
+  fi
+  rm -f "$PIDFILE" "$FIFO"
+  echo 'HOST_APP_DISPATCHER=STOPPED'
+}
+
+daemon_loop() {
+  trap 'exit 0' TERM INT HUP
+  if [ -e "$FIFO" ] && [ ! -p "$FIFO" ]; then rm -f "$FIFO"; fi
+  [ -p "$FIFO" ] || mkfifo -m 600 "$FIFO"
+  exec 9<>"$FIFO"
+  while IFS= read -r line <&9; do
+    IFS=$'\t' read -r -a fields <<< "$line"
+    [ "${#fields[@]}" -ge 2 ] || continue
+    [ "${fields[0]}" = WPS ] || continue
+    app="${fields[1]}"
+    case "$app" in writer|spreadsheets|presentation) ;; *) continue ;; esac
+    args=()
+    if [ "${#fields[@]}" -gt 2 ]; then
+      for encoded in "${fields[@]:2}"; do
+        decoded="$(printf '%s' "$encoded" | base64 -d 2>/dev/null || true)"
+        [ -n "$decoded" ] && args+=("$decoded")
+      done
+    fi
+    printf '%s app=%s argc=%s\n' "$(date -Iseconds)" "$app" "${#args[@]}" >>"$LOGS/host-app-requests.log"
+    DISPLAY="$DISPLAY_NUM" "$BASE/scripts/wps-host" "$app" "${args[@]}"       >>"$LOGS/wps-$app.log" 2>&1 &
+  done
+}
+
+case "${1:-start}" in
+  start) start_dispatcher ;;
+  stop) stop_dispatcher ;;
+  status)
+    if alive; then printf 'HOST_APP_DISPATCHER=RUNNING PID=%s\n' "$(cat "$PIDFILE")"
+    else echo 'HOST_APP_DISPATCHER=STOPPED'; exit 1; fi ;;
+  daemon) daemon_loop ;;
+  *) echo "Usage: $0 {start|stop|status}" >&2; exit 2 ;;
+esac
