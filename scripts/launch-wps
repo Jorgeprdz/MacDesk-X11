@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+ROOT="${MACDESK_ROOT:-/root/MacDesk-V6}"
+FIFO="$ROOT/state/host-app.fifo"
+app="${1:-writer}"
+shift || true
+case "$app" in writer|spreadsheets|presentation) ;; *) echo "Unknown WPS app: $app" >&2; exit 2 ;; esac
+
+[ -p "$FIFO" ] || {
+  echo "MacDesk host launcher is not running. Restart MacDesk or run setup-wps-desktop in Termux." >&2
+  exit 3
+}
+
+line=$'WPS\t'"$app"
+for arg in "$@"; do
+  encoded="$(printf '%s' "$arg" | base64 -w0)"
+  line+=$'\t'"$encoded"
+done
+
+timeout 3 bash -c 'printf "%s\n" "$1" > "$2"' bash "$line" "$FIFO"

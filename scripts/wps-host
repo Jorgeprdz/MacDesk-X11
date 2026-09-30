@@ -1,0 +1,67 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PREFIX=/data/data/com.termux/files/usr
+ROOTFS="$HOME/.local/wps-x64/rootfs"
+OFFICE6="$ROOTFS/opt/kingsoft/wps-office/office6"
+GLIBC="$PREFIX/glibc"
+PATHFILE="$HOME/.wps-extra-libpaths"
+
+app="${1:-writer}"
+shift || true
+case "$app" in
+  writer|wps) binary=wps ;;
+  spreadsheets|spreadsheet|et) binary=et ;;
+  presentation|presentations|wpp) binary=wpp ;;
+  *) printf 'Unknown WPS app: %s\n' "$app" >&2; exit 2 ;;
+esac
+
+program="$OFFICE6/$binary"
+box64="$GLIBC/bin/box64"
+[ -x "$program" ] || { printf 'WPS binary missing: %s\n' "$program" >&2; exit 3; }
+[ -x "$box64" ] || { printf 'Box64 missing: %s\n' "$box64" >&2; exit 4; }
+command -v grun >/dev/null 2>&1 || { echo 'glibc-runner (grun) is missing' >&2; exit 5; }
+
+export DISPLAY="${DISPLAY:-:2}"
+export TMPDIR="${TMPDIR:-$PREFIX/tmp}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$TMPDIR}"
+export BOX64_NOBANNER=1
+export BOX64_DYNAREC=1
+export QT_X11_NO_MITSHM=1
+export QT_QPA_PLATFORM=xcb
+
+libpath="$OFFICE6"
+for d in   "$GLIBC/lib/x86_64-linux-gnu"   "$GLIBC/lib"   "$ROOTFS/lib/x86_64-linux-gnu"   "$ROOTFS/usr/lib/x86_64-linux-gnu"   "$ROOTFS/usr/lib"   "$ROOTFS/lib"
+do
+  [ ! -d "$d" ] || libpath="$libpath:$d"
+done
+if [ -r "$PATHFILE" ]; then
+  while IFS= read -r d; do
+    [ -n "$d" ] && [ -d "$d" ] && libpath="$libpath:$d"
+  done < "$PATHFILE"
+fi
+export BOX64_LD_LIBRARY_PATH="$libpath:${BOX64_LD_LIBRARY_PATH:-}"
+
+debian_root="$PREFIX/var/lib/proot-distro/installed-rootfs/debian"
+translate_path() {
+  local p="$1"
+  case "$p" in
+    file://*) p="${p#file://}" ;;
+  esac
+  case "$p" in
+    /mnt/s25) printf '%s\n' "$HOME/storage/shared" ;;
+    /mnt/s25/*) printf '%s/%s\n' "$HOME/storage/shared" "${p#/mnt/s25/}" ;;
+    /root) printf '%s\n' "$HOME" ;;
+    /root/*) printf '%s/%s\n' "$HOME" "${p#/root/}" ;;
+    /home/macdesk/*) printf '%s%s\n' "$debian_root" "$p" ;;
+    *) printf '%s\n' "$p" ;;
+  esac
+}
+
+args=()
+for p in "$@"; do
+  args+=("$(translate_path "$p")")
+done
+
+exec grun "$box64" "$program" "${args[@]}"
