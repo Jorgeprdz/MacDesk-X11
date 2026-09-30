@@ -117,7 +117,7 @@ if ! command -v rclone >/dev/null 2>&1; then
 fi
 cat >"$PREFIX/bin/macdesk-gdrive" <<EOF
 #!$PREFIX/bin/bash
-exec "$BASE/scripts/macdesk-gdrive" "\$@"
+exec "$PREFIX/bin/bash" "$BASE/scripts/macdesk-gdrive" "\$@"
 EOF
 chmod 0755 "$PREFIX/bin/macdesk-gdrive"
 
