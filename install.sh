@@ -3,13 +3,13 @@
 set -euo pipefail
 
 REPOSITORY=https://github.com/Jorgeprdz/MacDesk-X11.git
-REF=feature/macos-27-lightweight
+REF=feature/wps-desktop-integration
 APK_URL=https://github.com/termux/termux-x11/releases/download/nightly/termux-x11-universal-debug.apk
-HOST_PACKAGES=(git curl proot-distro pulseaudio python x11-repo termux-x11-nightly)
+HOST_PACKAGES=(git curl proot-distro pulseaudio python rclone x11-repo termux-x11-nightly)
 GUEST_PACKAGES=(ca-certificates coreutils util-linux procps psmisc python3
   xfce4 xfce4-terminal dbus-x11 x11-utils x11-xserver-utils xinput xdotool wmctrl
   plank nautilus gnome-sushi gjs librsvg2-common libglib2.0-bin libgl1-mesa-dri
-  fonts-dejavu-core firefox-esr)
+  fonts-dejavu-core fonts-liberation2 fonts-noto-core firefox-esr)
 mode=install
 open_apk=true
 usage() {
@@ -152,7 +152,7 @@ done
 printf 'DEBIAN_DESKTOP=INSTALLED\n'
 GUEST
 
-for command in macdesk macdesk-stop macdesk-resume macdesk-smart-host; do
+for command in macdesk macdesk-stop macdesk-resume macdesk-smart-host macdesk-gdrive; do
   link="$PREFIX/bin/$command"
   install_launcher "$link" "$target/scripts/$command" "$PREFIX/bin/bash"
 done
@@ -171,7 +171,8 @@ if [[ "$apk_path" != package:* ]]; then
   fi
 fi
 printf '\nMacDesk desktop files and dependencies prepared.\n'
-printf 'For shared storage, grant access with: termux-setup-storage\n'
+printf 'For shared storage and WPS desktop integration, run: bash %s/scripts/setup-wps-desktop\n' "$target"
+printf 'Google Drive can be linked afterward with: macdesk-gdrive setup\n'
 printf 'After the Android APK is installed, start with: macdesk\n'
 printf 'Features and hardware limitations: %s/docs/SMART-DESKTOP.md\n' "$target"
 }
