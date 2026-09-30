@@ -5,6 +5,13 @@ BASE="$HOME/MacDesk-V6"
 STATE="$BASE/state"
 PREFIX=/data/data/com.termux/files/usr
 
+# Stop the Termux-side WPS bridge before the X11 server disappears. WPS
+# documents are separate host applications, so this stops only the dispatcher,
+# not an already-open WPS process.
+if [ -f "$BASE/scripts/host-app-dispatcher" ]; then
+  "$PREFIX/bin/bash" "$BASE/scripts/host-app-dispatcher" stop >/dev/null 2>&1 || true
+fi
+
 # Ask the optional core to restore its own deltas while the XFCE bus is alive.
 # Failure cannot prevent the existing owned-session shutdown path.
 if [ -S "$HOME/.config/macdesk/runtime/core.sock" ] && [ -x "$BASE/scripts/macdesk-smart-host" ]; then
