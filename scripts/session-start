@@ -117,21 +117,25 @@ fi
 if [ -d "$ROOT/config/xfwm/MacDesk-GoldenGate" ] && [ ! -e /usr/local/share/themes/MacDesk-GoldenGate ] && [ ! -L /usr/local/share/themes/MacDesk-GoldenGate ]; then
   ln -s "$ROOT/config/xfwm/MacDesk-GoldenGate" /usr/local/share/themes/MacDesk-GoldenGate
 fi
-# Local desktop IDs shadow the packaged Nautilus/ONLYOFFICE launchers without
-# modifying package-owned files.
+# Keep package-owned Nautilus/ONLYOFFICE menu entries untouched. MacDesk copies
+# separate NoDisplay=true helper launchers solely for Plank.
 plank_config=/root/.config/plank/dock1
 plank_launchers="$plank_config/launchers"
 plank_themes=/root/.local/share/plank/themes
 mkdir -p "$plank_launchers" "$plank_themes" /root/.local/share/applications
 rm -f \
   /root/.local/share/applications/10-nautilus.desktop \
+  /root/.local/share/applications/org.gnome.Nautilus.desktop \
+  /root/.local/share/applications/onlyoffice-desktopeditors.desktop \
   /root/.local/share/applications/onlyoffice-macdesk.desktop \
   /root/.local/share/applications/onlyoffice-document.desktop \
   /root/.local/share/applications/onlyoffice-spreadsheet.desktop \
   /root/.local/share/applications/onlyoffice-presentation.desktop \
   /root/.local/share/applications/macdesk-onlyoffice-document.desktop \
   /root/.local/share/applications/macdesk-onlyoffice-spreadsheet.desktop \
-  /root/.local/share/applications/macdesk-onlyoffice-presentation.desktop
+  /root/.local/share/applications/macdesk-onlyoffice-presentation.desktop \
+  /root/.local/share/applications/macdesk-nautilus.desktop \
+  /root/.local/share/applications/macdesk-onlyoffice.desktop
 rm -f "$plank_launchers"/30-onlyoffice-document.dockitem \
       "$plank_launchers"/31-onlyoffice-spreadsheet.dockitem \
       "$plank_launchers"/32-onlyoffice-presentation.dockitem
