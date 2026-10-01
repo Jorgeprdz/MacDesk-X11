@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ONLYOFFICE
+GenericName=Office Suite
+Comment=Documents, spreadsheets and presentations
+Exec=/usr/local/bin/macdesk-onlyoffice %U
+TryExec=/usr/local/bin/macdesk-onlyoffice
+Icon=onlyoffice-desktopeditors
+Terminal=false
+StartupNotify=true
+Categories=Office;WordProcessor;Spreadsheet;Presentation;
+MimeType=application/msword;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.ms-excel;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.ms-powerpoint;application/vnd.openxmlformats-officedocument.presentationml.presentation;text/csv;

@@ -47,12 +47,31 @@ fi
 # wrapper has to enter a private dbus-run-session. GNOME defaults to
 # appmenu:close on a fresh bus, which hides minimize/maximize in this XFCE/X11
 # session. Use macOS-style left-side controls.
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+GOLDENGATE_THEME=GoldenGate-Light
+if [ -n "${MACDESK_ROOT:-}" ] && grep -Eq '^ACTIVE_THEME=(macos27-dark|current-dark|dark|tahoe-dark|rollback)
+
+# Finder-style bottom bar is shipped as a private, reproducible MacDesk
+# module. The Debian Nautilus stays untouched and remains the automatic
+# fallback when the module is removed or incomplete.
+NAUTILUS_FINDER_PREFIX=/opt/macdesk-nautilus-finderbar
+if [ -x "$NAUTILUS_FINDER_PREFIX/bin/nautilus" ] &&
+   [ -f "$NAUTILUS_FINDER_PREFIX/.macdesk-installed" ]; then
+    NAUTILUS_BIN="$NAUTILUS_FINDER_PREFIX/bin/nautilus"
+else
+    NAUTILUS_BIN=/usr/bin/nautilus
+fi
+
+exec "$NAUTILUS_BIN" "$@"
+ "${MACDESK_ROOT}/state/theme.env" 2>/dev/null; then
+  GOLDENGATE_THEME=GoldenGate-Dark
+fi
+export GTK_THEME="$GOLDENGATE_THEME"
 if command -v gsettings >/dev/null 2>&1; then
   gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:' >/dev/null 2>&1 || true
-  gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita' >/dev/null 2>&1 || true
+  gsettings set org.gnome.desktop.interface gtk-theme "$GOLDENGATE_THEME" >/dev/null 2>&1 || true
   gsettings set org.gnome.desktop.interface icon-theme 'WhiteSur-MacDesk' >/dev/null 2>&1 || true
 fi
-export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 export GTK_DECORATION_LAYOUT='close,minimize,maximize:'
 
 # Finder-style bottom bar is shipped as a private, reproducible MacDesk

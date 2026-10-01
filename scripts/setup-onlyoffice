@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+URL="${ONLYOFFICE_ARM64_URL:-https://download.onlyoffice.com/install/desktop/editors/linux/onlyoffice-desktopeditors_arm64.deb}"
+if [[ "$(dpkg-query -W -f='${Status}' onlyoffice-desktopeditors 2>/dev/null || true)" == "install ok installed" ]] &&
+   [[ -x /usr/bin/onlyoffice-desktopeditors || -x /usr/bin/desktopeditors || -x /opt/onlyoffice/desktopeditors/DesktopEditors ]]; then
+  echo "ONLYOFFICE=ALREADY_INSTALLED"
+  exit 0
+fi
+
+command -v curl >/dev/null 2>&1 || {
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates
+}
+
+tmp="$(mktemp /tmp/onlyoffice-arm64.XXXXXX.deb)"
+trap 'rm -f "$tmp"' EXIT
+curl --fail --location --retry 3 --connect-timeout 20 "$URL" -o "$tmp"
+
+pkg="$(dpkg-deb -f "$tmp" Package)"
+arch="$(dpkg-deb -f "$tmp" Architecture)"
+[[ "$pkg" == "onlyoffice-desktopeditors" ]] || { echo "Unexpected package: $pkg" >&2; exit 1; }
+[[ "$arch" == "arm64" ]] || { echo "Unexpected architecture: $arch" >&2; exit 1; }
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y "$tmp"
+echo "ONLYOFFICE=INSTALLED VERSION=$(dpkg-query -W -f='${Version}' onlyoffice-desktopeditors)"

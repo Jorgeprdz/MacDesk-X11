@@ -42,9 +42,14 @@ mkdir -p /root/.config/gtk-4.0
 getent group 1023 >/dev/null 2>&1 || groupadd -g 1023 android_media_rw
 id macdesk >/dev/null 2>&1 || useradd -m -u 1000 -g 1023 -s /bin/sh macdesk
 install -m 755 $ROOT/scripts/launch-nautilus /usr/local/bin/macdesk-nautilus
-install -m 755 $ROOT/scripts/launch-wps /usr/local/bin/macdesk-wps
+install -m 755 $ROOT/scripts/launch-onlyoffice /usr/local/bin/macdesk-onlyoffice
 install -m 755 $ROOT/assets/nautilus/macdesk-nautilus-skip-root-delay.so /usr/local/lib/macdesk-nautilus-skip-root-delay.so
 [ -e /mnt/s25 ] || ln -s /sdcard /mnt/s25
+[ -e /mnt/phone ] || ln -s /sdcard /mnt/phone
+[ -e /mnt/home ] || ln -s /root /mnt/home
+[ -e /mnt/macdesk ] || ln -s "$ROOT" /mnt/macdesk
+[ -e /root/Phone ] || ln -s /sdcard /root/Phone
+[ -e /root/MacDesk ] || ln -s "$ROOT" /root/MacDesk
 cp $ROOT/config/storage/gtk-bookmarks /root/.config/gtk-3.0/bookmarks
 cp $ROOT/config/gtk-4.0/gtk.css /root/.config/gtk-4.0/gtk.css
 cp $ROOT/config/gtk-4.0/gtk-dark.css /root/.config/gtk-4.0/gtk-dark.css
@@ -99,26 +104,39 @@ mkdir -p /root/.local/share/icons
 if [ ! -e /root/.local/share/icons/WhiteSur-MacDesk ]; then
   ln -s $ROOT/assets/icons-clean/WhiteSur-MacDesk /root/.local/share/icons/WhiteSur-MacDesk
 fi
-mkdir -p /usr/local/share/themes
+mkdir -p /usr/local/share/themes /root/.local/share/themes
+for theme in GoldenGate-Light GoldenGate-Dark; do
+  link="/root/.local/share/themes/$theme"
+  if [ ! -e "$link" ] && [ ! -L "$link" ]; then
+    ln -s "$ROOT/assets/themes/$theme" "$link"
+  fi
+done
 if [ -d "$ROOT/vendor/visual-sources/GNOME-macOS-Tahoe/gtk/Tahoe-Dark" ] && [ ! -e /usr/local/share/themes/Tahoe-Dark ] && [ ! -L /usr/local/share/themes/Tahoe-Dark ]; then
   ln -s "$ROOT/vendor/visual-sources/GNOME-macOS-Tahoe/gtk/Tahoe-Dark" /usr/local/share/themes/Tahoe-Dark
 fi
 if [ -d "$ROOT/config/xfwm/MacDesk-GoldenGate" ] && [ ! -e /usr/local/share/themes/MacDesk-GoldenGate ] && [ ! -L /usr/local/share/themes/MacDesk-GoldenGate ]; then
   ln -s "$ROOT/config/xfwm/MacDesk-GoldenGate" /usr/local/share/themes/MacDesk-GoldenGate
 fi
-nautilus_desktop=/usr/share/applications/org.gnome.Nautilus.desktop
-if [ -f "$nautilus_desktop" ] && [ "$(stat -c %a "$nautilus_desktop")" != 644 ]; then
-  backup="${nautilus_desktop}.macdesk-v6-package"
-  [ -e "$backup" ] || mv "$nautilus_desktop" "$backup"
-  cp /usr/local/share/applications/org.gnome.Nautilus.desktop "$nautilus_desktop"
-  chmod 644 "$nautilus_desktop"
-fi
-sed -i 's#^Exec=nautilus#Exec=/usr/local/bin/macdesk-nautilus#' "$nautilus_desktop"
+# Local desktop IDs shadow the packaged Nautilus/ONLYOFFICE launchers without
+# modifying package-owned files.
 plank_config=/root/.config/plank/dock1
 plank_launchers="$plank_config/launchers"
 plank_themes=/root/.local/share/plank/themes
 mkdir -p "$plank_launchers" "$plank_themes" /root/.local/share/applications
+rm -f \
+  /root/.local/share/applications/10-nautilus.desktop \
+  /root/.local/share/applications/onlyoffice-macdesk.desktop \
+  /root/.local/share/applications/onlyoffice-document.desktop \
+  /root/.local/share/applications/onlyoffice-spreadsheet.desktop \
+  /root/.local/share/applications/onlyoffice-presentation.desktop \
+  /root/.local/share/applications/macdesk-onlyoffice-document.desktop \
+  /root/.local/share/applications/macdesk-onlyoffice-spreadsheet.desktop \
+  /root/.local/share/applications/macdesk-onlyoffice-presentation.desktop
+rm -f "$plank_launchers"/30-onlyoffice-document.dockitem \
+      "$plank_launchers"/31-onlyoffice-spreadsheet.dockitem \
+      "$plank_launchers"/32-onlyoffice-presentation.dockitem
 cp $ROOT/config/plank/applications/*.desktop /root/.local/share/applications/
+update-desktop-database /root/.local/share/applications >/dev/null 2>&1 || true
 # These launchers are intentionally retired from the curated dock. Removing
 # only their live .dockitem files prevents Plank from auto-pinning them again.
 for retired in 05-applications 08-desktop 20-zen 27-chatgpt 28-canva 29-google-docs 30-google-sheets 30-chromium 50-libreoffice 60-gnome-software; do
@@ -141,7 +159,7 @@ plank_schema=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
 if [ ! -e "$plank_config/.macdesk-v6-configured" ]; then
   gsettings set "$plank_schema" alignment center
   gsettings set "$plank_schema" auto-pinning false
-  gsettings set "$plank_schema" dock-items "['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-onlyoffice-document.dockitem', '31-onlyoffice-spreadsheet.dockitem', '32-onlyoffice-presentation.dockitem', '40-terminal.dockitem', '80-lineaindividual.dockitem', '90-trash.dockitem']"
+  gsettings set "$plank_schema" dock-items "['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-onlyoffice.dockitem', '40-terminal.dockitem', '80-lineaindividual.dockitem', '90-trash.dockitem']"
   gsettings set "$plank_schema" hide-mode none
   gsettings set "$plank_schema" icon-size 52
   gsettings set "$plank_schema" items-alignment center
@@ -154,7 +172,7 @@ if [ ! -e "$plank_config/.macdesk-v6-configured" ]; then
 fi
 # Keep the curated launcher order deterministic without changing Plank's
 # geometry, monitor, theme, or visibility preferences.
-curated_dock_items="['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-onlyoffice-document.dockitem', '31-onlyoffice-spreadsheet.dockitem', '32-onlyoffice-presentation.dockitem', '40-terminal.dockitem', '80-lineaindividual.dockitem', '90-trash.dockitem']"
+curated_dock_items="['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-onlyoffice.dockitem', '40-terminal.dockitem', '80-lineaindividual.dockitem', '90-trash.dockitem']"
 current_dock_items="$(gsettings get "$plank_schema" dock-items)"
 [ "$current_dock_items" = "$curated_dock_items" ] || \
   gsettings set "$plank_schema" dock-items "$curated_dock_items"

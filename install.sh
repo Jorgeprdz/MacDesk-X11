@@ -3,10 +3,10 @@
 set -euo pipefail
 
 REPOSITORY=https://github.com/Jorgeprdz/MacDesk-X11.git
-REF=feature/wps-desktop-integration
+REF=repair/onlyoffice-nautilus-storage-20261001
 APK_URL=https://github.com/termux/termux-x11/releases/download/nightly/termux-x11-universal-debug.apk
 HOST_PACKAGES=(git curl proot-distro pulseaudio python rclone x11-repo termux-x11-nightly)
-GUEST_PACKAGES=(ca-certificates coreutils util-linux procps psmisc python3
+GUEST_PACKAGES=(ca-certificates coreutils util-linux procps psmisc python3 curl
   xfce4 xfce4-terminal dbus-x11 x11-utils x11-xserver-utils xinput xdotool wmctrl
   plank nautilus gnome-sushi gjs librsvg2-common libglib2.0-bin libgl1-mesa-dri
   fonts-dejavu-core fonts-liberation2 fonts-noto-core firefox-esr)
@@ -147,9 +147,10 @@ for entry in "$root"/config/applications/*.desktop; do
   destination="/root/.local/share/applications/$(basename "$entry")"
   [[ -e "$destination" ]] || install -m 0644 "$entry" "$destination"
 done
+"$root/scripts/setup-onlyoffice"
 # SAFE_FALLBACK is the normal session's default. The installer does not copy
 # device-specific Vulkan binaries, enable GPU experiments or overwrite XFCE.
-printf 'DEBIAN_DESKTOP=INSTALLED\n'
+printf 'DEBIAN_DESKTOP=INSTALLED ONLYOFFICE=INSTALLED\n'
 GUEST
 
 for command in macdesk macdesk-stop macdesk-resume macdesk-smart-host macdesk-gdrive; do
@@ -171,7 +172,7 @@ if [[ "$apk_path" != package:* ]]; then
   fi
 fi
 printf '\nMacDesk desktop files and dependencies prepared.\n'
-printf 'For shared storage and WPS desktop integration, run: bash %s/scripts/setup-wps-desktop\n' "$target"
+printf 'ONLYOFFICE, Nautilus and shared Android storage are configured by this build.\n'
 printf 'Google Drive can be linked afterward with: macdesk-gdrive setup\n'
 printf 'After the Android APK is installed, start with: macdesk\n'
 printf 'Features and hardware limitations: %s/docs/SMART-DESKTOP.md\n' "$target"
