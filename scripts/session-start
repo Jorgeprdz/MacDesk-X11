@@ -53,6 +53,7 @@ install -m 755 $ROOT/assets/nautilus/macdesk-nautilus-skip-root-delay.so /usr/lo
 cp $ROOT/config/storage/gtk-bookmarks /root/.config/gtk-3.0/bookmarks
 cp $ROOT/config/gtk-4.0/gtk.css /root/.config/gtk-4.0/gtk.css
 cp $ROOT/config/gtk-4.0/gtk-dark.css /root/.config/gtk-4.0/gtk-dark.css
+cp $ROOT/config/gtk-4.0/settings.ini /root/.config/gtk-4.0/settings.ini
 cp $ROOT/config/gtk-3.0/libadwaita.css /root/.config/gtk-3.0/libadwaita.css
 cp $ROOT/config/gtk-3.0/libadwaita-tweaks.css /root/.config/gtk-3.0/libadwaita-tweaks.css
 mkdir -p /home/macdesk/.config/gtk-3.0 /home/macdesk/.config/gtk-4.0
