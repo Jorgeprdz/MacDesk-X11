@@ -1,88 +1,47 @@
 #!/bin/sh
 set -eu
 
-# Nautilus 48 deliberately sleeps seven seconds when UID 0. Debian PRoot must
-# use UID 0 for a coherent session bus, so skip only that exact intentional
-# delay while retaining all normal sleeps and the known-good GPU/D-Bus path.
+# MacDesk runs Nautilus inside Debian PRoot on the authoritative XFCE/X11
+# session. Keep this wrapper deliberately small: package-owned Nautilus stays
+# untouched and Plank calls this wrapper through a private desktop entry.
 export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
-export LANG="${LANG:-es_MX.UTF-8}"
-export LC_ALL="${LC_ALL:-$LANG}"
-export LD_PRELOAD="/usr/local/lib/macdesk-nautilus-skip-root-delay.so${LD_PRELOAD:+:$LD_PRELOAD}"
-# GTK4 virpipe currently submits commands rejected by the Android virgl server.
-# Use the stable Cairo path for Nautilus so renderer failures cannot create an
-# X11 reconnect storm and exhaust Termux:X11 Binder/JNI references.
+export LANG="${LANG:-C.UTF-8}"
+unset LC_ALL
+
+# Stable GTK4 software path for Termux:X11.
 export GSK_RENDERER=cairo
 export GDK_DISABLE=gl,vulkan
-# Do not inherit MacDesk custom Mesa/virpipe variables in this process.
-unset LD_LIBRARY_PATH LIBGL_DRIVERS_PATH GALLIUM_DRIVER MESA_GL_VERSION_OVERRIDE VTEST_SOCKET_NAME
 export LIBGL_ALWAYS_SOFTWARE=true
 export GTK_A11Y=none
+unset LD_LIBRARY_PATH LIBGL_DRIVERS_PATH GALLIUM_DRIVER MESA_GL_VERSION_OVERRIDE VTEST_SOCKET_NAME
 
-# libgnome-desktop 44 always launches thumbnailers through bubblewrap. PRoot's
-# virtual /tmp cannot be used as a kernel-visible bwrap bind source, so every
-# otherwise-valid thumbnailer is recorded as failed. Upstream deliberately
-# disables this nested sandbox for Snap; use the same per-process escape path
-# in MacDesk's already-contained Debian PRoot. This affects only Nautilus and
-# restores the normal event-driven thumbnail factory without changing any
-# system library or thumbnailer definition.
+# Skip Nautilus' deliberate root-start delay in the PRoot session when the
+# MacDesk preload helper is available.
+if [ -f /usr/local/lib/macdesk-nautilus-skip-root-delay.so ]; then
+  export LD_PRELOAD="/usr/local/lib/macdesk-nautilus-skip-root-delay.so${LD_PRELOAD:+:$LD_PRELOAD}"
+fi
+
+# PRoot cannot provide bubblewrap the kernel-visible paths expected by the
+# thumbnail sandbox. This keeps thumbnail generation on the already-contained
+# MacDesk path.
 export SNAP_NAME="${SNAP_NAME:-macdesk-proot}"
 
-# A long-running Android PRoot session can leave XFCE and X11 healthy while
-# its original D-Bus socket closes every new client. Nautilus otherwise opens
-# incompletely and GNOME Sushi never receives Space. Preserve the normal XFCE
-# bus whenever it answers; isolate only this application when it does not.
-if [ "${MACDESK_NAUTILUS_PRIVATE_BUS:-0}" != 1 ] && \
-   { [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] || \
-     ! gdbus call --session \
-         --dest org.freedesktop.DBus \
-         --object-path /org/freedesktop/DBus \
-         --method org.freedesktop.DBus.ListNames >/dev/null 2>&1; }; then
-    export MACDESK_NAUTILUS_PRIVATE_BUS=1
-    exec dbus-run-session -- "$0" "$@"
+# Prefer the XFCE session bus. If that bus is stale, isolate only Nautilus on a
+# fresh private bus instead of changing the rest of the desktop session.
+if [ "${MACDESK_NAUTILUS_PRIVATE_BUS:-0}" != 1 ] && {
+     [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] ||
+     ! gdbus call --session          --dest org.freedesktop.DBus          --object-path /org/freedesktop/DBus          --method org.freedesktop.DBus.ListNames >/dev/null 2>&1
+   }; then
+  export MACDESK_NAUTILUS_PRIVATE_BUS=1
+  exec dbus-run-session -- "$0" "$@"
 fi
 
-
-# Keep Nautilus/libadwaita window controls visible while preserving the
-# MacDesk GTK4 CSS/assets installed in ~/.config/gtk-4.0, including when this
-# wrapper has to enter a private dbus-run-session. GNOME defaults to
-# appmenu:close on a fresh bus, which hides minimize/maximize in this XFCE/X11
-# session. Use macOS-style left-side controls.
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-GOLDENGATE_THEME=GoldenGate-Light
-if [ -n "${MACDESK_ROOT:-}" ] && grep -Eq '^ACTIVE_THEME=(macos27-dark|current-dark|dark|tahoe-dark|rollback)
-
-# Finder-style bottom bar is shipped as a private, reproducible MacDesk
-# module. The Debian Nautilus stays untouched and remains the automatic
-# fallback when the module is removed or incomplete.
-NAUTILUS_FINDER_PREFIX=/opt/macdesk-nautilus-finderbar
-if [ -x "$NAUTILUS_FINDER_PREFIX/bin/nautilus" ] &&
-   [ -f "$NAUTILUS_FINDER_PREFIX/.macdesk-installed" ]; then
-    NAUTILUS_BIN="$NAUTILUS_FINDER_PREFIX/bin/nautilus"
-else
-    NAUTILUS_BIN=/usr/bin/nautilus
-fi
-
-exec "$NAUTILUS_BIN" "$@"
- "${MACDESK_ROOT}/state/theme.env" 2>/dev/null; then
-  GOLDENGATE_THEME=GoldenGate-Dark
-fi
-export GTK_THEME="$GOLDENGATE_THEME"
-if command -v gsettings >/dev/null 2>&1; then
-  gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:' >/dev/null 2>&1 || true
-  gsettings set org.gnome.desktop.interface gtk-theme "$GOLDENGATE_THEME" >/dev/null 2>&1 || true
-  gsettings set org.gnome.desktop.interface icon-theme 'WhiteSur-MacDesk' >/dev/null 2>&1 || true
-fi
 export GTK_DECORATION_LAYOUT='close,minimize,maximize:'
 
-# Finder-style bottom bar is shipped as a private, reproducible MacDesk
-# module. The Debian Nautilus stays untouched and remains the automatic
-# fallback when the module is removed or incomplete.
-NAUTILUS_FINDER_PREFIX=/opt/macdesk-nautilus-finderbar
-if [ -x "$NAUTILUS_FINDER_PREFIX/bin/nautilus" ] &&
-   [ -f "$NAUTILUS_FINDER_PREFIX/.macdesk-installed" ]; then
-    NAUTILUS_BIN="$NAUTILUS_FINDER_PREFIX/bin/nautilus"
-else
-    NAUTILUS_BIN=/usr/bin/nautilus
+if command -v gsettings >/dev/null 2>&1; then
+  gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:' >/dev/null 2>&1 || true
+  gsettings set org.gnome.desktop.interface icon-theme 'WhiteSur-MacDesk' >/dev/null 2>&1 || true
 fi
 
-exec "$NAUTILUS_BIN" "$@"
+exec /usr/bin/nautilus "$@"
