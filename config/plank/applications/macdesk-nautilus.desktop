@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Files
+GenericName=File Manager
+Comment=Browse MacDesk and Android storage
+Exec=/usr/local/bin/macdesk-nautilus /mnt/s25
+TryExec=/usr/local/bin/macdesk-nautilus
+Icon=org.gnome.Nautilus
+Terminal=false
+StartupNotify=true
+StartupWMClass=org.gnome.Nautilus
+NoDisplay=true
+Categories=System;FileTools;FileManager;
+MimeType=inode/directory;
