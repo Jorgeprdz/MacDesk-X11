@@ -12,6 +12,24 @@ sh -n "$BASE/scripts/session-start"
 
 "$BASE/scripts/macdesk-stop" >/dev/null 2>&1 || true
 
+# Never leave the user staring at a bare Termux:X11 canvas if package work
+# fails. Once the desktop is stopped, any error below triggers a best-effort
+# restart of the existing MacDesk session before the script returns failure.
+repair_complete=0
+recover_desktop() {
+  status=$?
+  if [[ "$repair_complete" != 1 ]]; then
+    echo "MacDesk repair interrupted (status=$status); attempting desktop recovery..." >&2
+    "$BASE/scripts/macdesk" || {
+      echo "MacDesk recovery start also failed; recent logs:" >&2
+      tail -80 "$BASE/logs/xfce-session.log" 2>/dev/null || true
+      tail -80 "$BASE/logs/dbus-session.log" 2>/dev/null || true
+    }
+  fi
+  exit "$status"
+}
+trap recover_desktop EXIT
+
 proot-distro login debian --shared-home --shared-tmp -- /bin/bash -lc '
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -40,4 +58,6 @@ bash "$BASE/tests/test-office-storage-contract.sh"
 
 "$BASE/scripts/macdesk"
 
+repair_complete=1
+trap - EXIT
 echo "MACDESK_OFFICE_STORAGE_REPAIR=PASS"
