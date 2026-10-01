@@ -96,14 +96,32 @@ for proc in /proc/[0-9]*/cmdline; do
       ;;
   esac
 done
+# A Termux:X11 process can survive after its X socket disappears.  Do not
+# "adopt" that half-dead server: it leaves the Android activity as a black
+# canvas and MacDesk can never start XFCE because :2 is not actually usable.
+if [ -n "$x11_existing" ] && [ ! -S "$PREFIX/tmp/.X11-unix/X2" ]; then
+  echo "TERMUX_X11=STALE PID=$x11_existing SOCKET=MISSING"
+  kill -TERM "$x11_existing" 2>/dev/null || true
+  for _ in $(seq 1 30); do
+    kill -0 "$x11_existing" 2>/dev/null || break
+    sleep .1
+  done
+  if kill -0 "$x11_existing" 2>/dev/null; then
+    kill -KILL "$x11_existing" 2>/dev/null || true
+    sleep .2
+  fi
+  x11_existing=''
+fi
+
 if [ -n "$x11_existing" ]; then
   rm -f "$STATE/x11.pid"
   echo "TERMUX_X11=ADOPTED PID=$x11_existing"
 else
-  # A crash can leave the X2 socket pathname behind after its listener dies.
-  # x11_existing was resolved from live processes above, so it is safe to
-  # remove the stale pathname before starting the replacement server.
-  [ ! -S "$PREFIX/tmp/.X11-unix/X2" ] || unlink "$PREFIX/tmp/.X11-unix/X2"
+  # A crash can leave the X2 socket pathname or lock behind after its listener
+  # dies.  There is no live usable server at this point, so clear stale state
+  # before starting a replacement.
+  [ ! -e "$PREFIX/tmp/.X11-unix/X2" ] || rm -f "$PREFIX/tmp/.X11-unix/X2"
+  [ ! -e "$PREFIX/tmp/.X2-lock" ] || rm -f "$PREFIX/tmp/.X2-lock"
   setsid env TMPDIR="$TMPDIR" termux-x11 "$DISPLAY_NUM" -ac >"$LOGS/termux-x11.log" 2>&1 &
   echo $! >"$STATE/x11.pid"
 fi
