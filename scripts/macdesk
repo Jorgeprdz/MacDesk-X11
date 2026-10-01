@@ -57,6 +57,12 @@ if [ -f "$STATE/guest.pid" ]; then
     case "$old_cmd" in
       *"$GUEST_ROOT/scripts/session-start"*|*"$GUEST_ROOT/scripts/macdesk-xfce-session"*|*"$GUEST_ROOT/config/gpu/env.sh"*)
         if healthy_session; then
+          # Linea Individual still runs on the Termux host through Hangover/Wine.
+          # Keep its small FIFO dispatcher alive even though the old WPS host
+          # bridge is no longer part of the desktop stack.
+          if [ -x "$BASE/scripts/host-app-dispatcher" ] && [ -x "$BASE/scripts/linea-host" ]; then
+            DISPLAY="$DISPLAY_NUM" "$PREFIX/bin/bash" "$BASE/scripts/host-app-dispatcher" start >/dev/null 2>&1 || true
+          fi
           focus_x11_activity
           echo 'MACDESK_V6=ALREADY_RUNNING'
           echo 'TERMUX_X11_ACTIVITY=FOCUSED'
@@ -131,8 +137,14 @@ for _ in $(seq 1 50); do
 done
 [ -S "$PREFIX/tmp/.X11-unix/X2" ] || { echo TERMUX_X11=FAIL; exit 1; }
 
-# Native ARM64 desktop applications now run inside the Debian session. The
-# former WPS/Box64 host dispatcher is intentionally not started.
+# Native office applications now run inside Debian, so the former WPS/Box64
+# bridge is retired. Linea Individual is different: it is a Windows application
+# running through Hangover/Wine on the Termux host, so keep the host FIFO
+# dispatcher for LINEA requests from the Debian Plank launcher.
+if [ -x "$BASE/scripts/host-app-dispatcher" ] && [ -x "$BASE/scripts/linea-host" ]; then
+  DISPLAY="$DISPLAY_NUM" "$PREFIX/bin/bash" "$BASE/scripts/host-app-dispatcher" start || \
+    echo "WARNING: Linea Individual host dispatcher did not start"
+fi
 
 # SAFE_FALLBACK does not start or force the experimental Zink/Vulkan path.
 # Leave an already-running VirGL service untouched for other Termux clients.
