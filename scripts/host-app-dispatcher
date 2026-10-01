@@ -27,7 +27,10 @@ start_dispatcher() {
   rm -f "$PIDFILE"
   if [ -e "$FIFO" ] && [ ! -p "$FIFO" ]; then rm -f "$FIFO"; fi
   [ -p "$FIFO" ] || mkfifo -m 600 "$FIFO"
-  setsid env DISPLAY="$DISPLAY_NUM" "$0" daemon >>"$LOGS/host-app-dispatcher.log" 2>&1 &
+  # Fully detach from the invoking terminal.  The dispatcher is a long-lived
+  # host bridge and must never keep an interactive Termux shell attached.
+  nohup setsid env DISPLAY="$DISPLAY_NUM" "$0" daemon \
+    </dev/null >>"$LOGS/host-app-dispatcher.log" 2>&1 &
   echo $! > "$PIDFILE"
   sleep .1
   alive || { echo 'HOST_APP_DISPATCHER=FAIL' >&2; return 1; }
