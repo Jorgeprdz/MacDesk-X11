@@ -1,0 +1,27 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+BASE="${HOME}/MacDesk-V6"
+[[ -d "$BASE/.git" ]] || { echo "MacDesk checkout not found: $BASE" >&2; exit 1; }
+
+"$BASE/scripts/macdesk-stop" >/dev/null 2>&1 || true
+
+proot-distro login debian --shared-home --shared-tmp -- /bin/bash -lc '
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y --reinstall nautilus
+/root/MacDesk-V6/scripts/setup-onlyoffice
+rm -f /usr/local/bin/macdesk-wps /usr/local/bin/wps-box64-run
+rm -f /root/.local/share/applications/*wps*.desktop 2>/dev/null || true
+rm -f /root/.config/plank/dock1/launchers/*wps*.dockitem 2>/dev/null || true
+update-desktop-database /root/.local/share/applications >/dev/null 2>&1 || true
+'
+
+# Remove the obsolete host WPS runtime without touching Box64/glibc themselves.
+rm -rf "$HOME/.local/wps-x64" "$HOME/.local/share/Kingsoft" "$HOME/.config/Kingsoft" "$HOME/.cache/Kingsoft" 2>/dev/null || true
+rm -f "$HOME"/.cache/box64/*wps*.box64 2>/dev/null || true
+
+"$BASE/scripts/macdesk"
+
+echo "MACDESK_OFFICE_STORAGE_REPAIR=PASS"
