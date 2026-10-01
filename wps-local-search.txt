@@ -1,0 +1,268 @@
+=================================================
+   BUSQUEDA LOCAL: WPS / ONLYOFFICE / PLANK
+=================================================
+
+### 1. PROCESOS WPS / KINGSOFT / BOX64
+PID=30318 :: /data/data/com.termux/files/usr/bin/proot --kill-on-exit --link2symlink --sysvipc --kernel-release=\Linux\localhost\6.17.0-PRoot-Distro\#1 SMP PREEMPT_DYNAMIC Fri, 10 Oct 2025 00:00:00 +0000\aarch64\localdomain\-1\ -L --change-id=0:0 --rootfs=. --cwd=/root --bind=/dev --bind=/proc --bind=/sys --bind=/dev/urandom:/dev/random --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/sys_empty:/sys/fs/selinux --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/loadavg:/proc/loadavg --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/stat:/proc/stat --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/uptime:/proc/uptime --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/version:/proc/version --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/vmstat:/proc/vmstat --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/sysctl_entry_cap_last_cap:/proc/sys/kernel/cap_last_cap --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/sysctl_inotify_max_user_watches:/proc/sys/fs/inotify/max_user_watches --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/sysctl_kernel_overflowuid:/proc/sys/kernel/overflowuid --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/sysdata/sysctl_kernel_overflowgid:/proc/sys/kernel/overflowgid --bind=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/shm:/dev/shm --bind=/data/app --bind=/data/dalvik-cache --bind=/data/misc/apexdata/com.android.art/dalvik-cache --bind=/storage/self/primary:/mnt/sdcard --bind=/storage/self/primary:/sdcard --bind=/storage/self/primary:/storage/emulated/0 --bind=/storage/self/primary:/storage/self/primary --bind=/data/data/com.termux/files/apps --bind=/data/data/com.termux/cache --bind=/data/data/com.termux/files/home --bind=/apex --bind=/odm --bind=/product --bind=/system --bind=/system_ext --bind=/vendor --bind=/linkerconfig/ld.config.txt --bind=/linkerconfig/com.android.art/ld.config.txt --bind=/data/data/com.termux/files/usr /bin/bash -c bash -lc '
+echo "================================================="
+echo "   BUSQUEDA LOCAL: WPS / ONLYOFFICE / PLANK"
+echo "================================================="
+
+echo
+echo "### 1. PROCESOS WPS / KINGSOFT / BOX64"
+for P in /proc/[0-9]*/cmdline; do
+    [ -r "$P" ] || continue
+    CMD="$(tr "\0" " " < "$P" 2>/dev/null)"
+    case "$CMD" in
+        *wps*|*kingsoft*|*office6*|*box64*|*" /et "*|*" /wpp "*)
+            PID="${P#/proc/}"
+            PID="${PID%/cmdline}"
+            echo "PID=$PID :: $CMD"
+            ;;
+    esac
+done
+
+echo
+echo "### 2. PAQUETES INSTALADOS"
+dpkg-query -W -f="\${Package}\t\${Version}\n" 2>/dev/null |
+grep -Ei "wps|kingsoft|onlyoffice" || true
+
+echo
+echo "### 3. BINARIOS / DIRECTORIOS WPS"
+find \
+    /opt \
+    /usr \
+    /usr/local \
+    /root \
+    /home \
+    -xdev \
+    \( \
+        -iname "*wps*" \
+        -o -iname "*kingsoft*" \
+        -o -iname "office6" \
+    \) \
+    -print 2>/dev/null | sort -u
+
+echo
+echo "### 4. EJECUTABLES ET / WPP / WPS"
+find \
+    /opt \
+    /usr/local \
+    /root \
+    /home \
+    -xdev \
+    -type f \
+    \( -name "wps" -o -name "et" -o -name "wpp" \) \
+    -print 2>/dev/null |
+while read -r F; do
+    echo "$F"
+    file "$F" 2>/dev/null | sed "s/^/    /"
+done
+
+echo
+echo "### 5. DESKTOP FILES QUE LLAMAN WPS"
+find \
+    /usr/share/applications \
+    /usr/local/share/applications \
+    /root/.local/share/applications \
+    /root/Desktop \
+    -type f -name "*.desktop" 2>/dev/null |
+while read -r F; do
+    if grep -Eiq "wps|kingsoft|office6|wps-box64" "$F"; then
+        echo
+        echo "--- $F"
+        grep -Ei "^(Name|Exec|Icon)=" "$F" || true
+    fi
+done
+
+echo
+echo "### 6. PLANK: TODOS LOS DOCKITEMS REALES"
+find /root/.config/plank \
+    -type f -name "*.dockitem" 2>/dev/null |
+while read -r F; do
+    echo
+    echo "--- $F"
+    cat "$F"
+done
+
+echo
+echo "### 7. PLANK: DOCK-ITEMS ACTIVOS SEGUN GSETTINGS"
+export DISPLAY=:2
+SCHEMA="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+gsettings get "$SCHEMA" dock-items 2>&1 || true
+
+echo
+echo "### 8. ONLYOFFICE LOCAL"
+command -v onlyoffice-desktopeditors 2>/dev/null || true
+command -v desktopeditors 2>/dev/null || true
+find /opt /usr /usr/local /root/.local/share/applications \
+    -iname "*onlyoffice*" -print 2>/dev/null | sort -u
+
+echo
+echo "### FIN"
+' 
+PID=30385 :: bash -lc 
+echo "================================================="
+echo "   BUSQUEDA LOCAL: WPS / ONLYOFFICE / PLANK"
+echo "================================================="
+
+echo
+echo "### 1. PROCESOS WPS / KINGSOFT / BOX64"
+for P in /proc/[0-9]*/cmdline; do
+    [ -r "$P" ] || continue
+    CMD="$(tr "\0" " " < "$P" 2>/dev/null)"
+    case "$CMD" in
+        *wps*|*kingsoft*|*office6*|*box64*|*" /et "*|*" /wpp "*)
+            PID="${P#/proc/}"
+            PID="${PID%/cmdline}"
+            echo "PID=$PID :: $CMD"
+            ;;
+    esac
+done
+
+echo
+echo "### 2. PAQUETES INSTALADOS"
+dpkg-query -W -f="\${Package}\t\${Version}\n" 2>/dev/null |
+grep -Ei "wps|kingsoft|onlyoffice" || true
+
+echo
+echo "### 3. BINARIOS / DIRECTORIOS WPS"
+find \
+    /opt \
+    /usr \
+    /usr/local \
+    /root \
+    /home \
+    -xdev \
+    \( \
+        -iname "*wps*" \
+        -o -iname "*kingsoft*" \
+        -o -iname "office6" \
+    \) \
+    -print 2>/dev/null | sort -u
+
+echo
+echo "### 4. EJECUTABLES ET / WPP / WPS"
+find \
+    /opt \
+    /usr/local \
+    /root \
+    /home \
+    -xdev \
+    -type f \
+    \( -name "wps" -o -name "et" -o -name "wpp" \) \
+    -print 2>/dev/null |
+while read -r F; do
+    echo "$F"
+    file "$F" 2>/dev/null | sed "s/^/    /"
+done
+
+echo
+echo "### 5. DESKTOP FILES QUE LLAMAN WPS"
+find \
+    /usr/share/applications \
+    /usr/local/share/applications \
+    /root/.local/share/applications \
+    /root/Desktop \
+    -type f -name "*.desktop" 2>/dev/null |
+while read -r F; do
+    if grep -Eiq "wps|kingsoft|office6|wps-box64" "$F"; then
+        echo
+        echo "--- $F"
+        grep -Ei "^(Name|Exec|Icon)=" "$F" || true
+    fi
+done
+
+echo
+echo "### 6. PLANK: TODOS LOS DOCKITEMS REALES"
+find /root/.config/plank \
+    -type f -name "*.dockitem" 2>/dev/null |
+while read -r F; do
+    echo
+    echo "--- $F"
+    cat "$F"
+done
+
+echo
+echo "### 7. PLANK: DOCK-ITEMS ACTIVOS SEGUN GSETTINGS"
+export DISPLAY=:2
+SCHEMA="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+gsettings get "$SCHEMA" dock-items 2>&1 || true
+
+echo
+echo "### 8. ONLYOFFICE LOCAL"
+command -v onlyoffice-desktopeditors 2>/dev/null || true
+command -v desktopeditors 2>/dev/null || true
+find /opt /usr /usr/local /root/.local/share/applications \
+    -iname "*onlyoffice*" -print 2>/dev/null | sort -u
+
+echo
+echo "### FIN"
+ 
+
+### 2. PAQUETES INSTALADOS
+onlyoffice-desktopeditors	9.4.0-129
+
+### 3. BINARIOS / DIRECTORIOS WPS
+/usr/local/bin/macdesk-wps
+/usr/local/bin/wps-box64-run
+/usr/share/ghostscript/10.05.1/lib/viewps2a.ps
+
+### 4. EJECUTABLES ET / WPP / WPS
+
+### 5. DESKTOP FILES QUE LLAMAN WPS
+grep: /usr/share/applications/org.kde.kwalletd6.desktop: Permission denied
+
+--- /usr/share/applications/onlyoffice-desktopeditors.desktop
+Name=ONLYOFFICE
+Exec=/usr/bin/onlyoffice-desktopeditors %U
+Icon=onlyoffice-desktopeditors
+Name=New document
+Exec=/usr/bin/onlyoffice-desktopeditors --new:word
+Name=New spreadsheet
+Exec=/usr/bin/onlyoffice-desktopeditors --new:cell
+Name=New presentation
+Exec=/usr/bin/onlyoffice-desktopeditors --new:slide
+Name=New PDF
+Exec=/usr/bin/onlyoffice-desktopeditors --new:form
+
+### 6. PLANK: TODOS LOS DOCKITEMS REALES
+
+--- /root/.config/plank/dock1/launchers/onlyoffice-document.dockitem
+[PlankDockItemPreferences]
+Launcher=file:///root/.local/share/applications/onlyoffice-document.desktop
+
+--- /root/.config/plank/dock1/launchers/onlyoffice-spreadsheet.dockitem
+[PlankDockItemPreferences]
+Launcher=file:///root/.local/share/applications/onlyoffice-spreadsheet.desktop
+
+--- /root/.config/plank/dock1/launchers/onlyoffice-presentation.dockitem
+[PlankDockItemPreferences]
+Launcher=file:///root/.local/share/applications/onlyoffice-presentation.desktop
+
+### 7. PLANK: DOCK-ITEMS ACTIVOS SEGUN GSETTINGS
+@as []
+
+### 8. ONLYOFFICE LOCAL
+/usr/bin/onlyoffice-desktopeditors
+/usr/bin/desktopeditors
+/opt/onlyoffice
+/opt/onlyoffice/desktopeditors/providers/onlyoffice
+/root/.local/share/applications/onlyoffice-document.desktop
+/root/.local/share/applications/onlyoffice-macdesk.desktop
+/root/.local/share/applications/onlyoffice-presentation.desktop
+/root/.local/share/applications/onlyoffice-spreadsheet.desktop
+/usr/bin/onlyoffice-desktopeditors
+/usr/local/bin/macdesk-onlyoffice
+/usr/share/applications/onlyoffice-desktopeditors.desktop
+/usr/share/doc/onlyoffice-desktopeditors
+/usr/share/icons/hicolor/128x128/apps/onlyoffice-desktopeditors.png
+/usr/share/icons/hicolor/16x16/apps/onlyoffice-desktopeditors.png
+/usr/share/icons/hicolor/24x24/apps/onlyoffice-desktopeditors.png
+/usr/share/icons/hicolor/256x256/apps/onlyoffice-desktopeditors.png
+/usr/share/icons/hicolor/32x32/apps/onlyoffice-desktopeditors.png
+/usr/share/icons/hicolor/48x48/apps/onlyoffice-desktopeditors.png
+/usr/share/icons/hicolor/64x64/apps/onlyoffice-desktopeditors.png
+/usr/share/licenses/onlyoffice-desktopeditors
+
+### FIN

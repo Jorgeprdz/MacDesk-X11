@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=WPS Writer
+Comment=Documents with WPS Office
+Icon=macdesk-wps-writer
+Exec=/usr/local/bin/macdesk-wps writer %F
+TryExec=/usr/local/bin/macdesk-wps
+StartupWMClass=wps
+Terminal=false
+NoDisplay=false
+Categories=Office;WordProcessor;
+MimeType=application/msword;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/rtf;text/plain;

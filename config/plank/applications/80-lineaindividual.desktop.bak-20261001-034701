@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Linea Individual 7.5
+Comment=LineaIndividualApp con Wine
+Exec=/root/MacDesk-V6/scripts/launch-linea
+Icon=/root/.local/share/icons/hicolor/32x32/apps/lineaindividual.png
+Terminal=false
+Categories=Office;
+StartupNotify=false
+StartupWMClass=lineaindividualapp.exe

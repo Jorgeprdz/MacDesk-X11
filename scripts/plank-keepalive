@@ -1,0 +1,49 @@
+#!/bin/sh
+set -u
+BASE="${MACDESK_ROOT:-/root/MacDesk-V6}"
+LOG="$BASE/logs/plank-keepalive.log"
+RUNTIME_LOG="$BASE/logs/plank-runtime.log"
+export DISPLAY="${DISPLAY:-:2}"
+export HOME=/root
+export XDG_CONFIG_HOME=/root/.config
+export XDG_DATA_HOME=/root/.local/share
+export XDG_RUNTIME_DIR=/tmp/macdesk-runtime-0
+export XDG_CURRENT_DESKTOP=XFCE
+export XDG_SESSION_TYPE=x11
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+mkdir -p "$BASE/logs" /root/.config/plank/dock1/launchers /root/.local/share/applications /root/.local/share/icons
+find_bus() {
+  for proc in /proc/[0-9]*/environ; do
+    [ -r "$proc" ] || continue
+    cmdfile="${proc%/environ}/cmdline"
+    cmd="$(tr '\0' ' ' < "$cmdfile" 2>/dev/null || true)"
+    case "$cmd" in
+      *xfce4-session*|*xfwm4*|*xfdesktop*|*xfce4-panel*)
+        tr '\0' '\n' < "$proc" 2>/dev/null | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' | head -1
+        return 0
+        ;;
+    esac
+  done
+}
+plank_window_exists() {
+  for window in $(timeout 2 xdotool search --class plank 2>/dev/null); do
+    timeout 2 xprop -id "$window" _NET_WM_WINDOW_TYPE 2>/dev/null | grep -q '_NET_WM_WINDOW_TYPE_DOCK' && return 0
+  done
+  return 1
+}
+start_plank() {
+  bus="$(find_bus || true)"
+  [ -n "$bus" ] && export DBUS_SESSION_BUS_ADDRESS="$bus"
+  pkill -x plank 2>/dev/null || true
+  sleep .4
+  nohup /usr/bin/plank --name dock1 >>"$RUNTIME_LOG" 2>&1 &
+  printf '%s action=start pid=%s bus=%s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$!" "${bus:-NONE}" >>"$LOG"
+}
+printf '%s action=keepalive-start\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" >>"$LOG"
+while :; do
+  if ! plank_window_exists; then
+    start_plank
+    sleep 3
+  fi
+  sleep 2
+done

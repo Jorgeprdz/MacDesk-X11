@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Configuración
+Name[es]=Configuración
+Comment=Panel de configuración de MacDesk/XFCE
+Exec=xfce4-settings-manager
+Icon=preferences-system
+Terminal=false
+StartupNotify=true
+Categories=Settings;System;DesktopSettings;X-XFCE-SettingsDialog;X-XFCE-SystemSettings;
+NoDisplay=false

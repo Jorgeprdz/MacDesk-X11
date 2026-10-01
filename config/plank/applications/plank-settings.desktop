@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Dock Settings
+Exec=/usr/bin/plank --preferences
+Icon=plank
+Terminal=false
+Categories=Settings;

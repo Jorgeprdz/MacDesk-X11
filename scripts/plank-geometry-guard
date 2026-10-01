@@ -2,11 +2,68 @@
 set -u
 
 export DISPLAY="${DISPLAY:-:2}"
-
 BASE="${MACDESK_ROOT:-$(cd -- "$(dirname -- "$0")/.." && pwd)}"
 export MACDESK_ROOT="$BASE"
+STATE_DIR="$BASE/state"
+LOG_DIR="$BASE/logs"
+RUNTIME_LOG="$LOG_DIR/plank-runtime.log"
+GUARD_LOG="$LOG_DIR/plank-geometry-guard.log"
+LOCK_PID="$STATE_DIR/plank-geometry-guard.lock.pid"
+PID_FILE="$STATE_DIR/plank-geometry-guard.pid"
 SCHEMA=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
-RUNTIME_LOG="$BASE/logs/plank-runtime.log"
+
+mkdir -p "$STATE_DIR" "$LOG_DIR"
+
+is_live_guard() {
+  pid="$1"
+  case "$pid" in ""|*[!0-9]*) return 1 ;; esac
+  [ "$pid" != "$$" ] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  cmd="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
+  case "$cmd" in *plank-geometry-guard*) return 0 ;; esac
+  return 1
+}
+
+old_pid="$(cat "$LOCK_PID" 2>/dev/null || true)"
+if is_live_guard "$old_pid"; then
+  printf '%s action=exit-duplicate active_pid=%s self=%s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$old_pid" "$$" >>"$GUARD_LOG"
+  exit 0
+fi
+printf '%s\n' "$$" >"$LOCK_PID"
+printf '%s\n' "$$" >"$PID_FILE"
+cleanup() {
+  current="$(cat "$LOCK_PID" 2>/dev/null || true)"
+  [ "$current" = "$$" ] && rm -f "$LOCK_PID"
+}
+trap cleanup EXIT INT TERM
+
+find_session_bus() {
+  for proc in /proc/[0-9]*/environ; do
+    [ -r "$proc" ] || continue
+    cmdfile="${proc%/environ}/cmdline"
+    cmd="$(tr '\0' ' ' < "$cmdfile" 2>/dev/null || true)"
+    case "$cmd" in
+      *xfce4-session*|*xfwm4*|*xfdesktop*|*xfce4-panel*)
+        tr '\0' '\n' < "$proc" 2>/dev/null | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' | head -1
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+setup_plank_env() {
+  bus="$(find_session_bus || true)"
+  [ -n "$bus" ] && export DBUS_SESSION_BUS_ADDRESS="$bus"
+  export HOME=/root
+  export XDG_CONFIG_HOME=/root/.config
+  export XDG_DATA_HOME=/root/.local/share
+  export XDG_RUNTIME_DIR=/tmp/macdesk-runtime-0
+  export XDG_CURRENT_DESKTOP=XFCE
+  export XDG_SESSION_TYPE=x11
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  mkdir -p "$XDG_RUNTIME_DIR" /root/.config/plank /root/.local/share/applications /root/.local/share/icons
+}
 
 root_geometry() {
   info="$(timeout 2 xwininfo -root 2>/dev/null)" || return 1
@@ -16,45 +73,75 @@ root_geometry() {
   printf '%s %s\n' "$width" "$height"
 }
 
-dock_geometry() {
+dock_window_id() {
   for window in $(timeout 2 xdotool search --class plank 2>/dev/null); do
-    timeout 2 xprop -id "$window" _NET_WM_WINDOW_TYPE 2>/dev/null \
-      | grep -q '_NET_WM_WINDOW_TYPE_DOCK' || continue
-    geometry="$(timeout 2 xdotool getwindowgeometry --shell "$window" 2>/dev/null)" || continue
-    x="$(printf '%s\n' "$geometry" | sed -n 's/^X=//p')"
-    y="$(printf '%s\n' "$geometry" | sed -n 's/^Y=//p')"
-    width="$(printf '%s\n' "$geometry" | sed -n 's/^WIDTH=//p')"
-    height="$(printf '%s\n' "$geometry" | sed -n 's/^HEIGHT=//p')"
-    [ -n "$x" ] && [ -n "$y" ] && [ -n "$width" ] && [ -n "$height" ] || continue
-    printf '%s %s %s %s\n' "$x" "$y" "$width" "$height"
+    timeout 2 xprop -id "$window" _NET_WM_WINDOW_TYPE 2>/dev/null | grep -q '_NET_WM_WINDOW_TYPE_DOCK' || continue
+    printf '%s\n' "$window"
     return 0
   done
   return 1
 }
 
-restart_plank() {
-  old_pids="$(pgrep -x plank 2>/dev/null || true)"
-  [ -z "$old_pids" ] || kill -TERM $old_pids 2>/dev/null || true
+dock_geometry() {
+  window="$(dock_window_id || true)"
+  [ -n "$window" ] || return 1
+  geometry="$(timeout 2 xdotool getwindowgeometry --shell "$window" 2>/dev/null)" || return 1
+  x="$(printf '%s\n' "$geometry" | sed -n 's/^X=//p')"
+  y="$(printf '%s\n' "$geometry" | sed -n 's/^Y=//p')"
+  width="$(printf '%s\n' "$geometry" | sed -n 's/^WIDTH=//p')"
+  height="$(printf '%s\n' "$geometry" | sed -n 's/^HEIGHT=//p')"
+  [ -n "$x" ] && [ -n "$y" ] && [ -n "$width" ] && [ -n "$height" ] || return 1
+  printf '%s %s %s %s\n' "$x" "$y" "$width" "$height"
+}
+
+plank_pids() {
+  pgrep -x plank 2>/dev/null || true
+}
+
+start_plank() {
+  setup_plank_env
+  if command -v /usr/bin/plank >/dev/null 2>&1; then
+    /usr/bin/plank --name dock1 >>"$RUNTIME_LOG" 2>&1 &
+  else
+    plank --name dock1 >>"$RUNTIME_LOG" 2>&1 &
+  fi
+  printf '%s action=start-plank pid=%s bus=%s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$!" "${DBUS_SESSION_BUS_ADDRESS:-NONE}" >>"$GUARD_LOG"
+}
+
+stop_plank() {
+  pids="$(plank_pids)"
+  [ -z "$pids" ] || kill -TERM $pids 2>/dev/null || true
   attempts=0
-  while pgrep -x plank >/dev/null 2>&1 && [ "$attempts" -lt 20 ]; do
+  while [ -n "$(plank_pids)" ] && [ "$attempts" -lt 20 ]; do
     attempts=$((attempts + 1))
     sleep .1
   done
-  # Reuse the owning XFCE session bus; never create a second dock bus.
-  plank --name dock1 >>"$RUNTIME_LOG" 2>&1 &
-  printf '%s geometry=%s dock=%s action=restart\n' \
-    "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$1" "$2" >>"$RUNTIME_LOG"
+  pids="$(plank_pids)"
+  [ -z "$pids" ] || kill -KILL $pids 2>/dev/null || true
+}
+
+restart_plank() {
+  reason="$1"
+  geom="${2:-unknown}"
+  dock="${3:-unknown}"
+  stop_plank
+  start_plank
+  printf '%s action=restart reason=%s geometry=%s dock=%s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$reason" "$geom" "$dock" >>"$GUARD_LOG"
 }
 
 last_root=''
 stable_polls=0
 mismatch_polls=0
+no_dock_polls=0
+
+printf '%s action=guard-start pid=%s display=%s base=%s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$$" "$DISPLAY" "$BASE" >>"$GUARD_LOG"
 
 while :; do
   root="$(root_geometry || true)"
   if [ -z "$root" ]; then
     stable_polls=0
     mismatch_polls=0
+    no_dock_polls=0
     sleep .5
     continue
   fi
@@ -65,34 +152,44 @@ while :; do
     last_root="$root"
     stable_polls=0
     mismatch_polls=0
+    no_dock_polls=0
   fi
 
-  position="$(gsettings get "$SCHEMA" position 2>/dev/null || true)"
   dock="$(dock_geometry || true)"
-  if [ "$position" = "'bottom'" ] && [ -n "$dock" ]; then
-    set -- $root
-    root_width=$1
-    root_height=$2
-    set -- $dock
-    dock_x=$1
-    dock_y=$2
-    dock_width=$3
-    dock_height=$4
-    dock_bottom=$((dock_y + dock_height))
-    if [ "$dock_x" -ne 0 ] || [ "$dock_width" -ne "$root_width" ] \
-      || [ "$dock_bottom" -ne "$root_height" ]; then
-      mismatch_polls=$((mismatch_polls + 1))
+  if [ -z "$dock" ]; then
+    mismatch_polls=0
+    if [ -z "$(plank_pids)" ]; then
+      start_plank
+      no_dock_polls=0
     else
-      mismatch_polls=0
+      no_dock_polls=$((no_dock_polls + 1))
+      if [ "$no_dock_polls" -ge 20 ]; then
+        restart_plank no-dock-window "$(printf '%sx%s' $root)" none
+        no_dock_polls=0
+      fi
     fi
+    sleep .5
+    continue
+  fi
+
+  no_dock_polls=0
+  set -- $root
+  root_width=$1
+  root_height=$2
+  set -- $dock
+  dock_x=$1
+  dock_y=$2
+  dock_width=$3
+  dock_height=$4
+  dock_bottom=$((dock_y + dock_height))
+  if [ "$dock_x" -ne 0 ] || [ "$dock_width" -ne "$root_width" ] || [ "$dock_bottom" -ne "$root_height" ]; then
+    mismatch_polls=$((mismatch_polls + 1))
   else
     mismatch_polls=0
   fi
 
-  # Two stable geometry samples plus two mismatched dock samples debounce the
-  # rapid sequence of intermediate sizes emitted while a DeX window resizes.
   if [ "$stable_polls" -ge 2 ] && [ "$mismatch_polls" -ge 2 ]; then
-    restart_plank "$(printf '%sx%s' $root)" "$(printf '%s,%s,%sx%s' $dock)"
+    restart_plank geometry-mismatch "$(printf '%sx%s' $root)" "$(printf '%s,%s,%sx%s' $dock)"
     stable_polls=0
     mismatch_polls=0
     sleep 1

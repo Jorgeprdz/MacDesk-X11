@@ -41,20 +41,6 @@ if [ "${MACDESK_NAUTILUS_PRIVATE_BUS:-0}" != 1 ] && \
     exec dbus-run-session -- "$0" "$@"
 fi
 
-
-# Keep Nautilus/libadwaita window controls visible while preserving the
-# MacDesk GTK4 CSS/assets installed in ~/.config/gtk-4.0, including when this
-# wrapper has to enter a private dbus-run-session. GNOME defaults to
-# appmenu:close on a fresh bus, which hides minimize/maximize in this XFCE/X11
-# session. Use macOS-style left-side controls.
-if command -v gsettings >/dev/null 2>&1; then
-  gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:' >/dev/null 2>&1 || true
-  gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita' >/dev/null 2>&1 || true
-  gsettings set org.gnome.desktop.interface icon-theme 'WhiteSur-MacDesk' >/dev/null 2>&1 || true
-fi
-export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-export GTK_DECORATION_LAYOUT='close,minimize,maximize:'
-
 # Finder-style bottom bar is shipped as a private, reproducible MacDesk
 # module. The Debian Nautilus stays untouched and remains the automatic
 # fallback when the module is removed or incomplete.

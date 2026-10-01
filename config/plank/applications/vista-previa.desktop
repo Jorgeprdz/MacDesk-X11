@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Vista Previa
+GenericName=PDF and Image Viewer
+Exec=/usr/bin/okular %U
+Icon=okular
+Terminal=false
+StartupNotify=true
+Categories=Graphics;Viewer;
+MimeType=application/pdf;image/jpeg;image/png;image/webp;image/gif;image/tiff;

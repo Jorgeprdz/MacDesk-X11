@@ -55,6 +55,10 @@ daemon_loop() {
   while IFS= read -r line <&9; do
     IFS=$'\t' read -r -a fields <<< "$line"
     [ "${#fields[@]}" -ge 2 ] || continue
+    if [ "${fields[0]}" = LINEA ] && [ "${fields[1]}" = run ]; then
+      DISPLAY="$DISPLAY_NUM" "$BASE/scripts/linea-host" run >>"$LOGS/lineaindividual.log" 2>&1 &
+      continue
+    fi
     [ "${fields[0]}" = WPS ] || continue
     app="${fields[1]}"
     case "$app" in writer|spreadsheets|presentation) ;; *) continue ;; esac

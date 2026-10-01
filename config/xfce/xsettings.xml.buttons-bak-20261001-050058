@@ -1,7 +1,7 @@
 <?xml version="1.1" encoding="UTF-8"?>
 <channel name="xsettings" version="1.0">
   <property name="Net" type="empty">
-    <property name="ThemeName" type="string" value="Default"/>
+    <property name="ThemeName" type="string" value="MacDesk-GoldenGate"/>
     <property name="IconThemeName" type="string" value="WhiteSur-MacDesk"/>
   </property>
   <property name="Xft" type="empty">
@@ -13,6 +13,6 @@
   <property name="Gtk" type="empty">
     <property name="FontName" type="string" value="Sans 10"/>
     <property name="MonospaceFontName" type="string" value="Monospace 10"/>
-    <property name="DecorationLayout" type="string" value="menu:minimize,maximize,close"/>
+    <property name="DecorationLayout" type="string" value="close,minimize,maximize:"/>
   </property>
 </channel>

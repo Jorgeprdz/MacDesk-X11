@@ -1,0 +1,22 @@
+#!/bin/bash
+# Reapply XFDesktop's right-column placement after RandR/WM geometry changes.
+set -eu
+export DISPLAY="${DISPLAY:-:2}"
+base="${MACDESK_ROOT:-/root/MacDesk-V6}"
+mkdir -p "$base/logs"
+exec >> "$base/logs/desktop-icons-right.log" 2>&1
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/macdesk-desktop-icons-right.lock"
+flock -n 9 || exit 0
+xfconf-query -c xfce4-desktop -p /desktop-icons/gravity -s 2
+xfconf-query -c xfce4-desktop -p /desktop-icons/confirm-sorting -s false
+last_geometry=''
+xprop -spy -root _NET_DESKTOP_GEOMETRY | while IFS= read -r event; do
+    # Let XFDesktop finish rebuilding its grid before arranging the icons.
+    sleep 0.8
+    geometry="$(xprop -root _NET_DESKTOP_GEOMETRY)"
+    [ "$geometry" != "$last_geometry" ] || continue
+    if xfdesktop --arrange; then
+        last_geometry="$geometry"
+        printf '%s aligned-right %s\n' "$(date -Iseconds)" "$geometry"
+    fi
+done

@@ -2,8 +2,8 @@
 Type=Application
 Name=WhatsApp Web
 Icon=macdesk-whatsapp
-Exec=/root/MacDesk-V6/scripts/launch-whatsapp-firefox
-StartupWMClass=firefox-esr
+Exec=/root/MacDesk-V6/scripts/launch-whatsapp
+StartupWMClass=MacDeskWhatsApp
 Terminal=false
 NoDisplay=false
 Categories=Network;InstantMessaging;Chat;

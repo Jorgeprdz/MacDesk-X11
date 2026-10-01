@@ -1,0 +1,62 @@
+==============================
+ WPS SPREADSHEETS CRASH REPORT
+==============================
+Thu Oct  1 09:10:20 UTC 2026
+
+=== MEMORIA ===
+               total        used        free      shared  buff/cache   available
+Mem:            10Gi       8.3Gi       1.1Gi       156Mi       1.8Gi       2.6Gi
+Swap:           11Gi       6.8Gi       5.2Gi
+
+=== DISCO ===
+Filesystem        Size  Used Avail Use% Mounted on
+/dev/block/dm-72  219G  121G   98G  56% /
+tmpfs             219G  121G   98G  56% /tmp
+
+=== DISPLAY ===
+DISPLAY=
+XDG_SESSION_TYPE=
+
+=== WPS / BOX64 ===
+/usr/local/bin/box64
+/usr/local/bin/wps-box64
+Box64 arm64 v0.4.5 50069bc with Dynarec built on Sep 29 2026 19:10:11
+
+=== BINARIO ET ===
+ET=/opt/wps-box64/rootfs/opt/kingsoft/wps-office/office6/et
+bash: line 39: file: command not found
+-rwxr-xr-x. 1 root root 2.4M Sep 30 01:30 /opt/wps-box64/rootfs/opt/kingsoft/wps-office/office6/et
+
+=== LAUNCHERS WPS ===
+/usr/share/applications/xfce-keyboard-settings.desktop:Exec=xfce4-keyboard-settings
+/usr/share/applications/xfce-mouse-settings.desktop:Exec=xfce4-mouse-settings
+/usr/share/applications/xfce-settings-manager.desktop:Exec=xfce4-settings-manager
+/usr/share/applications/xfce-ui-settings.desktop:Exec=xfce4-appearance-settings
+/usr/share/applications/xfce4-accessibility-settings.desktop:Exec=xfce4-accessibility-settings
+/usr/share/applications/xfce4-color-settings.desktop:Exec=xfce4-color-settings
+/usr/share/applications/xfce4-mime-settings.desktop:Exec=xfce4-mime-settings
+/usr/share/applications/xfce4-settings-editor.desktop:Exec=xfce4-settings-editor
+/usr/share/applications/xfce-backdrop-settings.desktop:Exec=xfdesktop-settings
+/usr/share/applications/xfce-session-settings.desktop:Exec=xfce4-session-settings
+/usr/share/applications/xfce-wm-settings.desktop:Exec=xfwm4-settings
+/usr/share/applications/xfce-wmtweaks-settings.desktop:Exec=xfwm4-tweaks-settings
+/usr/share/applications/xfce-display-settings.desktop:Exec=xfce4-display-settings
+/usr/share/applications/xfce-workspaces-settings.desktop:Exec=xfwm4-workspace-settings
+/usr/share/applications/wps-et-box64.desktop:Exec=/usr/local/bin/macdesk-wps spreadsheets %F
+/usr/share/applications/org.kde.kwalletd6.desktop:Exec=kwalletd6
+/usr/share/applications/ktelnetservice6.desktop:Exec=ktelnetservice6 %u
+/usr/share/applications/openstreetmap-geo-handler.desktop:Exec=kde-geo-uri-handler --coordinate-template "https://www.openstreetmap.org/#map=<Z>/<LAT>/<LON>" --query-template "https://www.openstreetmap.org/search?query=<Q>" --fallback "https://www.openstreetmap.org" %u
+/usr/share/applications/kcm_kdeconnect.desktop:Exec=systemsettings kcm_kdeconnect
+/usr/share/applications/org.kde.kdeconnect-settings.desktop:Exec=kdeconnect-settings
+/usr/share/applications/systemsettings.desktop:Exec=systemsettings
+/usr/share/applications/systemsettings.desktop:Exec=systemsettings kcm_lookandfeel
+/usr/share/applications/systemsettings.desktop:Exec=systemsettings kcm_users
+/usr/share/applications/systemsettings.desktop:Exec=systemsettings kcm_screenlocker
+/usr/share/applications/systemsettings.desktop:Exec=systemsettings kcm_powerdevilprofilesconfig
+/usr/share/applications/systemsettings.desktop:Exec=systemsettings kcm_kscreen
+/usr/share/applications/kdesystemsettings.desktop:Exec=systemsettings
+
+=== PROCESOS ANTES ===
+aid_u0_+ 17901  0.0  0.0   2316   768 pts/0    S+    2023   0:00 tee -a /tmp/wps-crash-report.txt
+
+=== LIMPIANDO PROCESOS COLGADOS ===

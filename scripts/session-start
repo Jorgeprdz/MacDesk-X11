@@ -141,7 +141,7 @@ plank_schema=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
 if [ ! -e "$plank_config/.macdesk-v6-configured" ]; then
   gsettings set "$plank_schema" alignment center
   gsettings set "$plank_schema" auto-pinning false
-  gsettings set "$plank_schema" dock-items "['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-wps-writer.dockitem', '31-wps-spreadsheets.dockitem', '32-wps-presentation.dockitem', '40-terminal.dockitem', '90-trash.dockitem']"
+  gsettings set "$plank_schema" dock-items "['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-onlyoffice-document.dockitem', '31-onlyoffice-spreadsheet.dockitem', '32-onlyoffice-presentation.dockitem', '40-terminal.dockitem', '80-lineaindividual.dockitem', '90-trash.dockitem']"
   gsettings set "$plank_schema" hide-mode none
   gsettings set "$plank_schema" icon-size 52
   gsettings set "$plank_schema" items-alignment center
@@ -154,7 +154,7 @@ if [ ! -e "$plank_config/.macdesk-v6-configured" ]; then
 fi
 # Keep the curated launcher order deterministic without changing Plank's
 # geometry, monitor, theme, or visibility preferences.
-curated_dock_items="['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-wps-writer.dockitem', '31-wps-spreadsheets.dockitem', '32-wps-presentation.dockitem', '40-terminal.dockitem', '90-trash.dockitem']"
+curated_dock_items="['10-nautilus.dockitem', 'mailspring-macdesk.dockitem', '20-firefox.dockitem', '25-whatsapp.dockitem', '30-onlyoffice-document.dockitem', '31-onlyoffice-spreadsheet.dockitem', '32-onlyoffice-presentation.dockitem', '40-terminal.dockitem', '80-lineaindividual.dockitem', '90-trash.dockitem']"
 current_dock_items="$(gsettings get "$plank_schema" dock-items)"
 [ "$current_dock_items" = "$curated_dock_items" ] || \
   gsettings set "$plank_schema" dock-items "$curated_dock_items"

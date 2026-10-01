@@ -47,3 +47,9 @@ state/session-check.env
 state/session-health.env
 __pycache__/
 *.pyc
+.rclone.conf.bridge
+rclone.conf
+.config/rclone/rclone.conf
+*.credentials
+*.credentials.json
+*oauth*.json

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=WPS Presentation
+Comment=Presentations with WPS Office
+Icon=macdesk-wps-presentation
+Exec=/usr/local/bin/macdesk-wps presentation %F
+StartupWMClass=wpp
+Terminal=false
+NoDisplay=false
+Categories=Office;Presentation;
+MimeType=application/vnd.ms-powerpoint;application/vnd.openxmlformats-officedocument.presentationml.presentation;

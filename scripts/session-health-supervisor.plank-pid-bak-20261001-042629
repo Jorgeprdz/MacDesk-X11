@@ -57,24 +57,13 @@ log_transition() {
     "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$key" "$value" "${old:-NONE}" >> "$LOG"
 }
 
-valid_plank_guard_pid() {
-  guard_pid="$1"
+plank_guard_is_healthy() {
+  guard_pid="$(cat "$BASE/state/plank-geometry-guard.pid" 2>/dev/null || true)"
   case "$guard_pid" in ""|*[!0-9]*) return 1 ;; esac
   kill -0 "$guard_pid" 2>/dev/null || return 1
   [ "$(process_state "$guard_pid" 2>/dev/null || true)" != Z ] || return 1
   guard_cmd="$(tr "\0" " " <"/proc/$guard_pid/cmdline" 2>/dev/null || true)"
-  case "$guard_cmd" in *plank-geometry-guard*) return 0 ;; esac
-  return 1
-}
-
-plank_guard_is_healthy() {
-  for guard_pid in     "$(cat "$BASE/state/plank-geometry-guard.pid" 2>/dev/null || true)"     "$(cat "$BASE/state/plank-geometry-guard.lock.pid" 2>/dev/null || true)"; do
-    if valid_plank_guard_pid "$guard_pid"; then
-      printf "%s
-" "$guard_pid" >"$BASE/state/plank-geometry-guard.pid"
-      return 0
-    fi
-  done
+  case "$guard_cmd" in *"$BASE/scripts/plank-geometry-guard"*) return 0 ;; esac
   return 1
 }
 
@@ -82,22 +71,8 @@ ensure_plank_geometry_guard() {
   plank_guard_is_healthy && return 0
   "$BASE/scripts/plank-geometry-guard" >>"$BASE/logs/plank-geometry-guard.log" 2>&1 &
   guard_pid=$!
-  sleep .2
-  if valid_plank_guard_pid "$guard_pid"; then
-    printf "%s
-" "$guard_pid" >"$BASE/state/plank-geometry-guard.pid"
-    printf "%s PLANK_GEOMETRY_GUARD=RESTARTED PID=%s
-" "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$guard_pid" >>"$LOG"
-    return 0
-  fi
-  lock_pid="$(cat "$BASE/state/plank-geometry-guard.lock.pid" 2>/dev/null || true)"
-  if valid_plank_guard_pid "$lock_pid"; then
-    printf "%s
-" "$lock_pid" >"$BASE/state/plank-geometry-guard.pid"
-    return 0
-  fi
-  printf "%s PLANK_GEOMETRY_GUARD=FAILED_TO_START PID=%s
-" "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$guard_pid" >>"$LOG"
+  printf "%s\n" "$guard_pid" >"$BASE/state/plank-geometry-guard.pid"
+  printf "%s PLANK_GEOMETRY_GUARD=RESTARTED PID=%s\n" "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$guard_pid" >>"$LOG"
 }
 
 while :; do

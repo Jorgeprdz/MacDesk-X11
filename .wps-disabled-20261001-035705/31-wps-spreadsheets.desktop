@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=WPS Spreadsheets
+Comment=Spreadsheets with WPS Office
+Icon=macdesk-wps-spreadsheets
+Exec=/usr/local/bin/macdesk-wps spreadsheets %F
+StartupWMClass=et
+Terminal=false
+NoDisplay=false
+Categories=Office;Spreadsheet;
+MimeType=application/vnd.ms-excel;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;text/csv;

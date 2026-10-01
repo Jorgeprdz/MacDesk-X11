@@ -8,4 +8,3 @@ Terminal=false
 StartupNotify=true
 StartupWMClass=Mailspring
 Categories=Network;Email;
-NoDisplay=true
