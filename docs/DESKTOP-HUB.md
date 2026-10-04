@@ -76,3 +76,7 @@ Aplicaciones con Ctrl+Alt+Espacio. Se restauró la apariencia previa tras las pr
 Vista de referencia con contenido **sintético**, sin mensajes del teléfono:
 
 ![Tarjetas de notificaciones One UI](images/control-notifications-example.png)
+
+Las horas de las tarjetas de notificaciones usan `America/Mexico_City`, independientemente de la zona horaria de Android o Linux.
+
+El dock incluye también ChatGPT (`com.openai.chatgpt`), Chromium (`org.chromium.chrome`) y NewTermux (`com.termux`), con iconos del estilo macOS. Los accesos resuelven la actividad desde el catálogo instalado y reutilizan el puente Android.

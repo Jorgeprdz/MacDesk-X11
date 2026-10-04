@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ChatGPT (Android)
+Comment=Abrir ChatGPT en Android
+Exec=/root/MacDesk-V6/scripts/macdesk-android-open com.openai.chatgpt
+Icon=/root/MacDesk-V6/assets/icons/apps/android-chatgpt-macos.svg
+Terminal=false
+StartupNotify=false
+Categories=Utility;

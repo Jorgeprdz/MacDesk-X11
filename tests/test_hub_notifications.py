@@ -21,6 +21,12 @@ DUMP='''NotificationRecord(0x123: pkg=com.example)
   mSensitiveContent=false
 '''
 class NotificationTests(unittest.TestCase):
+ def test_notification_clock_uses_mexico_city(self):
+  from macdesk_notifications import notification_time
+  self.assertEqual(notification_time(1700000005000),"16:13")
+  self.assertEqual(notification_time(0),"")
+  self.assertEqual(notification_time(None),"")
+
  def test_reads_multiline_text_and_preserves_literal_markup(self):
   self.assertIsNotNone(parse_notification,'notification parser missing')
   n=parse_notification('0|com.example|4|null|12345',DUMP)

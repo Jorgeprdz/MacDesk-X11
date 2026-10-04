@@ -1,6 +1,5 @@
 """On-demand GTK3 dock stacks and Android control center."""
 import os,subprocess,threading,unicodedata
-from datetime import datetime
 from pathlib import Path
 import gi
 gi.require_version('Gtk','3.0');gi.require_version('Gdk','3.0')
@@ -9,6 +8,7 @@ from macdesk_hub_model import HubModel,atomic_json
 from macdesk_android_client import request
 from macdesk_appearance import apply_global_dark
 from macdesk_flip import FlipStack
+from macdesk_notifications import notification_time
 
 CSS='''
 #macdesk-hub { background: rgba(233,237,244,.94); border: 1px solid rgba(255,255,255,.72); border-radius: 22px; color: #242a35; }
@@ -284,7 +284,7 @@ class HubWindow(Gtk.ApplicationWindow):
   for item in items:
    app=apps.get(item['package']);card=style(Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=6),'notification-card')
    head=Gtk.Box(spacing=8);head.pack_start(image(self.model.icon_path(app) if app else None,name='preferences-system-notifications-symbolic',size=24),False,False,0);head.pack_start(label(app['label'] if app else item['package'],'notification-app'),True,True,0)
-   try:stamp=datetime.fromtimestamp(item.get('timestamp',0)/1000).strftime('%H:%M') if item.get('timestamp') else ''
+   try:stamp=notification_time(item.get('timestamp'))
    except (ValueError,OverflowError,OSError):stamp=''
    head.pack_end(label(stamp,'hub-subtitle'),False,False,0);card.pack_start(head,False,False,0)
    for text,kind,lines in [(item.get('title',''),'notification-title',2),(item.get('text',''),'notification-body',5)]:

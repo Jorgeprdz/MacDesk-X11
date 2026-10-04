@@ -65,14 +65,14 @@ for number in 27 28 29; do
   cp "/root/MacDesk-V6/config/dock-hub/launchers/macdesk-$mode.desktop" "/root/.config/xfce4/panel/launcher-$number/"
   xfconf-query -c xfce4-panel -p "/plugins/plugin-$number/items" -n -a -t string -s "macdesk-$mode.desktop"
 done
-for entry in "30:whatsapp" "31:chrome" "32:samsung-browser" "33:spotify"; do
+for entry in "30:whatsapp" "31:chrome" "32:samsung-browser" "33:spotify" "34:chatgpt" "35:chromium" "36:newtermux"; do
   number="${entry%%:*}"; app="${entry#*:}"
   setprop "/plugins/plugin-$number" string launcher
   mkdir -p "/root/.config/xfce4/panel/launcher-$number"
   cp "/root/MacDesk-V6/config/dock-hub/launchers/macdesk-android-dock-$app.desktop" "/root/.config/xfce4/panel/launcher-$number/"
   xfconf-query -c xfce4-panel -p "/plugins/plugin-$number/items" -n -a -t string -s "macdesk-android-dock-$app.desktop"
 done
-xfconf-query -c xfce4-panel -p /panels/panel-2/plugin-ids -n -a -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -s 25 -s 20 -s 30 -s 31 -s 32 -s 33 -s 21 -s 27 -s 28 -s 29 -s 22 -s 23 -s 24 -s 26
+xfconf-query -c xfce4-panel -p /panels/panel-2/plugin-ids -n -a -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -s 25 -s 20 -s 30 -s 31 -s 32 -s 33 -s 34 -s 35 -s 36 -s 21 -s 27 -s 28 -s 29 -s 22 -s 23 -s 24 -s 26
 /root/MacDesk-V6/scripts/macdesk-desktop-hub-setup
 
 

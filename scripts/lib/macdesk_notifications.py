@@ -1,6 +1,14 @@
 """On-demand notification snapshots. Android text is never evaluated as markup."""
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import re
 import time
+
+
+def notification_time(timestamp):
+    if not timestamp:
+        return ""
+    return datetime.fromtimestamp(timestamp / 1000, ZoneInfo("America/Mexico_City")).strftime("%H:%M")
 
 
 def expire_response(path, delay=30):

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=NewTermux (Android)
+Comment=Abrir NewTermux en Android
+Exec=/root/MacDesk-V6/scripts/macdesk-android-open com.termux
+Icon=/root/MacDesk-V6/assets/icons/apps/android-newtermux-macos.svg
+Terminal=false
+StartupNotify=false
+Categories=Utility;
