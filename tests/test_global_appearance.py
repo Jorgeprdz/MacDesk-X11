@@ -18,6 +18,10 @@ class AppearanceTests(unittest.TestCase):
    self.desktop[c,p]=v
   def save(value):self.saved=value
   return android,get,set_value,save
+ def test_desktop_icon_family_survives_dark_mode(self):
+  from macdesk_appearance import desktop_values
+  for dark,current,expected in [(True,"MacDesk-Desktop","MacDesk-Desktop-dark"),(False,"MacDesk-Desktop-dark","MacDesk-Desktop")]:
+   self.assertIn(("xsettings","/Net/IconThemeName",expected),desktop_values(dark,current))
  def test_both_systems_and_macos_theme_family(self):
   self.assertIsNotNone(apply_global_dark,'global appearance missing')
   cb=self.setup_callbacks();apply_global_dark(True,*cb)

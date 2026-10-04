@@ -14,4 +14,6 @@ if ! pgrep -x xfdesktop >/dev/null; then
   xfdesktop >>"$base/logs/xfdesktop-recovery.log" 2>&1 &
 fi
 "$base/scripts/macdesk-dock-icons-setup"
+# Re-publish XSETTINGS when a surviving daemon has lost its X11 selection.
+xfsettingsd --replace >>"$base/logs/xfsettings-recovery.log" 2>&1 &
 timeout 15 xfce4-panel --restart

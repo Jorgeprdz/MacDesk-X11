@@ -88,3 +88,7 @@ Los iconos fijos de Finder, Firefox, Terminal, Línea Individual, Aplicaciones, 
 Desde una terminal dentro de MacDesk ejecuta `~/MacDesk-V6/scripts/macdesk-refresh-desktop` para actualizar. Comprueba el bus de sesión activo, recupera `xfwm4` o `xfdesktop` si faltan, aplica los iconos y solicita el reinicio normal del panel. No utiliza PIDs guardados ni reinicia la sesión XFCE completa.
 
 Validación en DeX: escritorio y wallpaper recuperados, panel reiniciado con salida 0, `xfwm4` y `xfdesktop` permanecen activos y captura posterior revisada. Las capturas reales quedan localmente; no se publican porque pueden incluir ventanas personales.
+
+El escritorio usa `MacDesk-Desktop` / `MacDesk-Desktop-dark`, un tema de iconos pequeño que hereda BigSur y WhiteSur. Sustituye los iconos nativos de disco, Home y papelera (vacía/llena) por Finder y papelera de WhiteSur, además de un disco metálico vectorial del mismo estilo que el dock, conservando posiciones, acciones y estados de XFCE. Se instala al arrancar y se conserva al alternar el modo oscuro global.
+
+La actualización manual también recarga `xfsettingsd` para publicar el tema en GTK si el daemon anterior perdió su selección XSETTINGS. Se verificó la resolución real de los cuatro nombres de icono hacia `MacDesk-Desktop`, además de la captura del escritorio.

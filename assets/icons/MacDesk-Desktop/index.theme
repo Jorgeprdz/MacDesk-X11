@@ -1,0 +1,12 @@
+[Icon Theme]
+Name=MacDesk-Desktop
+Comment=MacDesk desktop icons matching the macOS dock
+Inherits=BigSur,WhiteSur-MacDesk,hicolor
+Directories=scalable/places
+
+[scalable/places]
+Size=64
+Type=Scalable
+MinSize=16
+MaxSize=512
+Context=Places

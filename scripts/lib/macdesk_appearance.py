@@ -19,7 +19,7 @@ def change_android_mode(mode, read, write):
 
 def desktop_values(dark, icon_theme='BigSur'):
     theme = 'GoldenGate-Dark' if dark else 'GoldenGate-Light'
-    icon_base = 'BigSur' if icon_theme.startswith('BigSur') else 'WhiteSur-MacDesk'
+    icon_base = 'MacDesk-Desktop' if icon_theme.startswith('MacDesk-Desktop') else ('BigSur' if icon_theme.startswith('BigSur') else 'WhiteSur-MacDesk')
     return [('xsettings', '/Net/ThemeName', theme),
             ('xsettings', '/Net/IconThemeName', icon_base + ('-dark' if dark else '')),
             ('xfwm4', '/general/theme', theme),

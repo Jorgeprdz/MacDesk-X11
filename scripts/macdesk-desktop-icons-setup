@@ -1,0 +1,12 @@
+#!/usr/bin/python3
+"""Apply curated special desktop icons without replacing XFCE's desktop items."""
+from pathlib import Path
+import subprocess
+root=Path(__file__).resolve().parents[1]
+for name in ('MacDesk-Desktop','MacDesk-Desktop-dark'):
+    link=Path.home()/'.local/share/icons'/name
+    link.parent.mkdir(parents=True,exist_ok=True)
+    if not link.exists():link.symlink_to(root/'assets/icons'/name,target_is_directory=True)
+current=subprocess.run(['xfconf-query','-c','xsettings','-p','/Net/IconThemeName'],text=True,capture_output=True,check=True).stdout.strip()
+name='MacDesk-Desktop-dark' if current.endswith('-dark') else 'MacDesk-Desktop'
+subprocess.run(['xfconf-query','-c','xsettings','-p','/Net/IconThemeName','-n','-t','string','-s',name],check=True)

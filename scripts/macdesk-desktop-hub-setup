@@ -24,7 +24,8 @@ else:print('Ctrl+Alt+Espacio ya tiene otra acción; se conservó el atajo existe
 try:
  preference=json.loads((root/'state/desktop-hub.json').read_text())
  if 'dark' in preference:
-  for channel,prop,value in desktop_values(preference['dark']):
+  current=subprocess.run(['xfconf-query','-c','xsettings','-p','/Net/IconThemeName'],text=True,capture_output=True).stdout.strip() or 'BigSur'
+  for channel,prop,value in desktop_values(preference['dark'],current):
    if channel=='gnome':subprocess.run(['gsettings','set','org.gnome.desktop.interface',prop,value],check=True)
    else:subprocess.run(['xfconf-query','-c',channel,'-p',prop,'-n','-t','string','-s',value],check=True)
 except (FileNotFoundError,ValueError):pass

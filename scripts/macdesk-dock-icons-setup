@@ -21,3 +21,5 @@ for filename,icon in icons.items():
 plugin=subprocess.run(['xfconf-query','-c','xfce4-panel','-p','/plugins/plugin-1'],capture_output=True,text=True)
 if plugin.stdout.strip()=='applicationsmenu':
     subprocess.run(['xfconf-query','-c','xfce4-panel','-p','/plugins/plugin-1/button-icon','-n','-t','string','-s',str(root/'assets/icons/dock/apple-menu.svg')],check=True)
+
+subprocess.run([str(root/"scripts/macdesk-desktop-icons-setup")],check=True)

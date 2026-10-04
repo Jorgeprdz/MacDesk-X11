@@ -92,6 +92,8 @@ mkdir -p /root/.local/share/icons
 if [ ! -e /root/.local/share/icons/WhiteSur-MacDesk ]; then
   ln -s $ROOT/assets/icons-clean/WhiteSur-MacDesk /root/.local/share/icons/WhiteSur-MacDesk
 fi
+# Keep the native desktop special icons consistent with the curated dock.
+"$ROOT/scripts/macdesk-desktop-icons-setup"
 mkdir -p /usr/local/share/themes
 if [ ! -e /usr/local/share/themes/Tahoe-Dark ]; then
   ln -s $ROOT/vendor/visual-sources/GNOME-macOS-Tahoe/gtk/Tahoe-Dark /usr/local/share/themes/Tahoe-Dark
