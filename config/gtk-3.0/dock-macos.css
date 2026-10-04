@@ -1,0 +1,69 @@
+
+/* MacDesk bottom dock, scoped to panel 2. */
+.xfce4-panel.panel-2.background {
+  background-color: rgba(200, 205, 215, 0.38);
+  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 22px;
+  padding: 4px 10px 0 10px;
+}
+.xfce4-panel.panel-2 button {
+  border-radius: 12px;
+  padding: 2px 5px;
+  margin: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.xfce4-panel.panel-2 button:hover {
+  background-color: rgba(255, 255, 255, 0.35);
+}
+/* Preview popups are separate windows, not descendants of the dock widget. */
+window.macdesk-dock-preview,
+window.macdesk-dock-preview .menu,
+window.macdesk-dock-preview .menu_item {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+window.macdesk-dock-preview .menu { padding: 8px; }
+window.macdesk-dock-preview .title {
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95);
+}
+window.macdesk-dock-preview .preview { border-radius: 8px; }
+
+.xfce4-panel.panel-2.background { background-image: linear-gradient(to bottom, rgba(255,255,255,0.16), rgba(255,255,255,0.03)); }
+
+/* Docklike animates both themed icons and file-backed icons itself. */
+#docklike-plugin .group image { -gtk-icon-transform: none; }
+.xfce4-panel.panel-2 #launcher-24 image {
+  -gtk-icon-transform: scale(1);
+  transition: -gtk-icon-transform 160ms ease;
+}
+.xfce4-panel.panel-2 #launcher-24:hover image { -gtk-icon-transform: scale(1.25); }
+
+/* Keep external plugin surfaces away from the capsule's curved end caps. */
+.xfce4-panel.panel-2 #separator-25,
+.xfce4-panel.panel-2 #separator-26 {
+  min-width: 22px;
+  background: transparent;
+}
+
+/* External GtkPlug surfaces inherit the panel glass, rather than painting rectangles. */
+.xfce4-panel:not(.panel-1):not(.panel-2) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Matching hover magnification for the three dock stack launchers. */
+.xfce4-panel.panel-2 #launcher-27 image,
+.xfce4-panel.panel-2 #launcher-28 image,
+.xfce4-panel.panel-2 #launcher-29 image {
+  -gtk-icon-transform: scale(1);
+  transition: -gtk-icon-transform 160ms ease;
+}
+.xfce4-panel.panel-2 #launcher-27:hover image,
+.xfce4-panel.panel-2 #launcher-28:hover image,
+.xfce4-panel.panel-2 #launcher-29:hover image { -gtk-icon-transform: scale(1.25); }

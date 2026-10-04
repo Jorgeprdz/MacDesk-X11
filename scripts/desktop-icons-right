@@ -1,0 +1,3 @@
+#!/bin/sh
+# Dock and desktop geometry now share one event-driven singleton.
+exec "${MACDESK_ROOT:-/root/MacDesk-V6}/scripts/plank-geometry-guard"

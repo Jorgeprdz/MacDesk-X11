@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ONLYOFFICE
+GenericName=Office Suite
+Comment=Documents, spreadsheets and presentations
+Exec=/root/MacDesk-V6/scripts/dock-open-or-focus office
+TryExec=/usr/local/bin/macdesk-onlyoffice
+Icon=/root/MacDesk-V6/assets/icons/apps/onlyoffice-bigsur.svg
+Terminal=false
+StartupNotify=false
+NoDisplay=false
+Categories=Office;WordProcessor;Spreadsheet;Presentation;

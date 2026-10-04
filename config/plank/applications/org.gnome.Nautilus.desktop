@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Files
+GenericName=File Manager
+Comment=Browse MacDesk and Android storage
+Exec=/root/MacDesk-V6/scripts/dock-open-or-focus files
+TryExec=/usr/local/bin/macdesk-nautilus
+Icon=org.gnome.Nautilus
+Terminal=false
+StartupNotify=false
+NoDisplay=true
+Categories=System;FileTools;FileManager;
+MimeType=inode/directory;

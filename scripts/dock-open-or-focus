@@ -1,0 +1,52 @@
+#!/usr/bin/python3
+"""Restore a dock application's existing X11 window before launching it."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT = Path(os.environ.get('MACDESK_ROOT', '/root/MacDesk-V6'))
+APPS = {
+    'files': ('org.gnome.Nautilus', ['/usr/local/bin/macdesk-nautilus', '/mnt/s25']),
+    'firefox': ('firefox-esr', ['/usr/bin/firefox-esr']),
+    'office': ('ONLYOFFICE', ['/usr/local/bin/macdesk-onlyoffice']),
+    'terminal': ('Xfce4-terminal', ['/usr/bin/xfce4-terminal']),
+    'linea': ('lineaindividualapp.exe', [str(ROOT / 'scripts/launch-linea')]),
+    'trash': (None, ['/usr/local/bin/macdesk-nautilus', '/root/.local/share/Trash/files']),
+}
+
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] not in APPS:
+        print('Usage: dock-open-or-focus {' + ','.join(APPS) + '} [files or URLs]', file=sys.stderr)
+        return 2
+    app = sys.argv[1]
+    wmclass, command = APPS[app]
+    arguments = sys.argv[2:]
+    # Explicit files/URLs must still reach the application rather than only
+    # activating a window. A plain dock click has no such arguments.
+    if wmclass and not arguments:
+        try:
+            result = subprocess.run(['wmctrl', '-lx'], capture_output=True, text=True, timeout=3)
+            for line in reversed(result.stdout.splitlines()):
+                fields = line.split(None, 4)
+                if len(fields) >= 3 and fields[2].lower().endswith('.' + wmclass.lower()):
+                    activated = subprocess.run(['wmctrl', '-ia', fields[0]], timeout=3)
+                    if activated.returncode == 0:
+                        return 0
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    command = command + arguments
+    if app != 'linea':
+        try:
+            bus = subprocess.run(['gdbus', 'call', '--session', '--dest', 'org.freedesktop.DBus',
+                                  '--object-path', '/org/freedesktop/DBus', '--method',
+                                  'org.freedesktop.DBus.ListNames'],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            if bus.returncode != 0:
+                command = ['/usr/bin/dbus-run-session', '--'] + command
+        except (OSError, subprocess.TimeoutExpired):
+            command = ['/usr/bin/dbus-run-session', '--'] + command
+    os.execvp(command[0], command)
+
+if __name__ == '__main__':
+    sys.exit(main())

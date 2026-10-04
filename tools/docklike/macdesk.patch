@@ -1,0 +1,184 @@
+--- a/src/Dock.cpp
++++ b/src/Dock.cpp
+@@ -178,7 +178,7 @@
+ 		gtk_box_set_spacing(GTK_BOX(mBox), mPanelSize / 10);
+ 
+ 		if (Settings::forceIconSize)
+-			mIconSize = Settings::iconSize;
++			mIconSize = MIN(int(Settings::iconSize), MAX(16, mPanelSize - 28));
+ 		else
+ 		{
+ 			if (mPanelSize <= 20)
+--- a/src/Group.cpp
++++ b/src/Group.cpp
+@@ -55,6 +55,20 @@
+ 
+ 	mButton = GTK_WIDGET(g_object_ref(gtk_button_new()));
+ 	mImage = gtk_image_new();
++    g_signal_connect_after(mImage, "size-allocate", G_CALLBACK(+[](GtkWidget* widget, GtkAllocation* allocation, gpointer) {
++        GtkAllocation clip = *allocation;
++        clip.y -= 10;
++        clip.height += 20;
++        gtk_widget_set_clip(widget, &clip);
++    }), nullptr);
++    g_signal_connect(mImage, "draw", G_CALLBACK(+[](GtkWidget* widget, cairo_t* cr, Group* me) -> gboolean {
++        if (me->mBounceOffset == 0.0) return FALSE;
++        cairo_save(cr);
++        cairo_translate(cr, 0, me->mBounceOffset);
++        GTK_WIDGET_GET_CLASS(widget)->draw(widget, cr);
++        cairo_restore(cr);
++        return TRUE;
++    }), this);
+ 	mLabel = gtk_label_new("");
+ 	GtkWidget* overlay = gtk_overlay_new();
+ 
+@@ -143,6 +157,7 @@
+ 	g_signal_connect(G_OBJECT(mButton), "enter-notify-event",
+ 		G_CALLBACK(+[](GtkWidget* widget, GdkEventCrossing* event, Group* me) {
+ 			Help::Gtk::cssClassAdd(me->mButton, "hover_group");
++			me->animateHover(true);
+ 			me->mLeaveTimeout.stop();
+ 			me->mMenuShowTimeout.start();
+ 
+@@ -158,6 +173,7 @@
+ 	g_signal_connect(G_OBJECT(mButton), "leave-notify-event",
+ 		G_CALLBACK(+[](GtkWidget* widget, GdkEventCrossing* event, Group* me) {
+ 			Help::Gtk::cssClassRemove(me->mButton, "hover_group");
++			me->animateHover(false);
+ 			me->mMenuShowTimeout.stop();
+ 
+ 			if (me->mPinned && !me->mWindowsCount)
+@@ -202,6 +218,8 @@
+ 
+ Group::~Group()
+ {
++	if (mHoverTick) gtk_widget_remove_tick_callback(mButton, mHoverTick);
++	if (mBounceTick) gtk_widget_remove_tick_callback(mButton, mBounceTick);
+ 	mLeaveTimeout.stop();
+ 	mMenuShowTimeout.stop();
+ 
+@@ -285,6 +303,54 @@
+ 	});
+ }
+ 
++void Group::bounceLaunch()
++{
++    mBounceStart = 0;
++    if (mBounceTick) return;
++    mBounceTick = gtk_widget_add_tick_callback(mButton,
++        +[](GtkWidget*, GdkFrameClock* clock, gpointer data) -> gboolean {
++            Group* me = static_cast<Group*>(data);
++            gint64 now = gdk_frame_clock_get_frame_time(clock);
++            if (!me->mBounceStart) me->mBounceStart = now;
++            double progress = (now - me->mBounceStart) / 800000.0;
++            if (progress >= 1.0) {
++                me->mBounceOffset = 0.0;
++                me->mBounceTick = 0;
++                gtk_widget_queue_draw(me->mButton);
++                return G_SOURCE_REMOVE;
++            }
++            // Two diminishing jumps, with a pause at the baseline at each landing.
++            me->mBounceOffset = -8.0 * (1.0 - progress * 0.6) * std::abs(std::sin(progress * 2.0 * M_PI));
++            gtk_widget_queue_draw(me->mButton);
++            return G_SOURCE_CONTINUE;
++        }, this, nullptr);
++}
++
++void Group::animateHover(bool hover)
++{
++    mHoverTarget = hover ? 1.25 : 1.0;
++    if (mHoverTick) return;
++    mHoverLastFrame = 0;
++    mHoverTick = gtk_widget_add_tick_callback(mButton,
++        +[](GtkWidget*, GdkFrameClock* clock, gpointer data) -> gboolean {
++            Group* me = static_cast<Group*>(data);
++            gint64 now = gdk_frame_clock_get_frame_time(clock);
++            double elapsed = me->mHoverLastFrame ? std::min(0.05, (now - me->mHoverLastFrame) / 1000000.0) : 0.016;
++            me->mHoverLastFrame = now;
++            double step = elapsed * 1.6;
++            double delta = me->mHoverTarget - me->mHoverScale;
++            if (std::abs(delta) <= step) {
++                me->mHoverScale = me->mHoverTarget;
++                me->resize();
++                me->mHoverTick = 0;
++                return G_SOURCE_REMOVE;
++            }
++            me->mHoverScale += delta > 0 ? step : -step;
++            me->resize();
++            return G_SOURCE_CONTINUE;
++        }, this, nullptr);
++}
++
+ void Group::resize()
+ {
+ 	// TODO: set `min-width` / `min-height` CSS property on button?
+@@ -297,7 +363,7 @@
+ 	if (mIconPixbuf != nullptr)
+ 	{
+ 		gint scale_factor = gtk_widget_get_scale_factor(mButton);
+-		gint size = Dock::mIconSize * scale_factor;
++		gint size = std::lround(Dock::mIconSize * mHoverScale) * scale_factor;
+ 		GdkPixbuf* scaled = gdk_pixbuf_scale_simple(mIconPixbuf, size, size, GDK_INTERP_BILINEAR);
+ 		cairo_surface_t* surface = gdk_cairo_surface_create_from_pixbuf(scaled, scale_factor, NULL);
+ 		gtk_image_set_from_surface(GTK_IMAGE(mImage), surface);
+@@ -305,8 +371,9 @@
+ 		g_object_unref(scaled);
+ 	}
+ 	else
+-		gtk_image_set_pixel_size(GTK_IMAGE(mImage), Dock::mIconSize);
+-
++		gtk_image_set_pixel_size(GTK_IMAGE(mImage), std::lround(Dock::mIconSize * mHoverScale));
++
++	gtk_widget_set_size_request(mImage, std::lround(Dock::mIconSize * 1.25), std::lround(Dock::mIconSize * 1.25));
+ 	gtk_widget_set_valign(mImage, GTK_ALIGN_CENTER);
+ 	gtk_widget_queue_draw(mButton);
+ }
+@@ -870,6 +937,7 @@
+ 		}
+ 		case BEHAVIOR_LAUNCH_NEW:
+ 		{
++			bounceLaunch();
+ 			mAppInfo->launch();
+ 			break;
+ 		}
+@@ -880,7 +948,10 @@
+ 		}
+ 	}
+ 	else if (event->state & GDK_SHIFT_MASK || (mPinned && !mWindowsCount))
++	{
++		bounceLaunch();
+ 		mAppInfo->launch();
++	}
+ 	else if (mActive)
+ 		mWindows.get(mTopWindowIndex)->minimize();
+ 	else
+--- a/src/Group.hpp
++++ b/src/Group.hpp
+@@ -64,6 +64,15 @@
+ 	void closeAll();
+ 
+ 	void resize();
++	void animateHover(bool hover);
++	void bounceLaunch();
++	guint mBounceTick = 0;
++	gint64 mBounceStart = 0;
++	double mBounceOffset = 0.0;
++	double mHoverScale = 1.0;
++	double mHoverTarget = 1.0;
++	guint mHoverTick = 0;
++	gint64 mHoverLastFrame = 0;
+ 	void updateStyle();
+ 
+ 	void onDraw(cairo_t* cr);
+--- a/src/GroupMenu.cpp
++++ b/src/GroupMenu.cpp
+@@ -20,6 +20,9 @@
+ 	GtkWidget* window = gtk_window_new(GtkWindowType::GTK_WINDOW_POPUP);
+ 	gtk_widget_add_events(window, GDK_SCROLL_MASK);
+ 	gtk_window_set_default_size(GTK_WINDOW(window), 1, 1);
++    GdkVisual* visual = gdk_screen_get_rgba_visual(gtk_widget_get_screen(window));
++    if (visual != nullptr) gtk_widget_set_visual(window, visual);
++    Help::Gtk::cssClassAdd(window, "macdesk-dock-preview");
+ #ifdef ENABLE_WAYLAND
+ 	if (gtk_layer_is_supported())
+ 	{

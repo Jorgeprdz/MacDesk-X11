@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MacDesk Desktop Icon Alignment
+Exec=/root/MacDesk-V6/scripts/desktop-icons-right
+OnlyShowIn=XFCE;
+Terminal=false
+X-GNOME-Autostart-enabled=true

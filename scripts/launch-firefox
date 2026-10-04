@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-base=/data/data/com.termux/files/home/MacDesk-V6
+base=/root/MacDesk-V6
 . "$base/config/gpu/env.sh"
 
 # Firefox runs on the proven Adreno 830 -> Turnip -> Zink X11 path.

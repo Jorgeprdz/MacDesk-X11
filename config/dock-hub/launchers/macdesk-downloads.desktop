@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Descargas
+Comment=Descargas de MacDesk
+Exec=/root/MacDesk-V6/scripts/macdesk-desktop-hub downloads
+Icon=folder-download
+Terminal=false
+StartupNotify=false
+Categories=Utility;

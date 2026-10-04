@@ -1,0 +1,80 @@
+#!/bin/bash
+set -euo pipefail
+# Keep the local hover/RGBA patch across package updates and desktop restarts.
+BASE="${MACDESK_ROOT:-$(cd -- "$(dirname -- "$0")/.." && pwd)}"
+custom_plugin="$BASE/tools/docklike/libdocklike-aarch64.so"
+installed_plugin=/usr/lib/aarch64-linux-gnu/xfce4/panel/plugins/libdocklike.so
+if [ -f "$custom_plugin" ] && ! cmp -s "$custom_plugin" "$installed_plugin"; then
+  cp -n "$installed_plugin" "$installed_plugin.macdesk-original" || true
+  install -m 755 "$custom_plugin" "$installed_plugin.macdesk-new"
+  mv "$installed_plugin.macdesk-new" "$installed_plugin"
+fi
+mkdir -p /root/.config/gtk-3.0 /root/.config/xfce4/panel
+install -m 644 "$BASE/config/gtk-3.0/dock-macos.css" /root/.config/gtk-3.0/gtk.css
+if [ ! -s /root/.config/xfce4/panel/docklike-20.rc ]; then
+  cp "$BASE/config/plank/docklike-20.rc" /root/.config/xfce4/panel/docklike-20.rc
+fi
+xfconf-query -c xfce4-desktop -p /desktop-icons/gravity -n -t int -s 2
+xfconf-query -c xfce4-desktop -p /desktop-icons/confirm-sorting -n -t bool -s false
+for entry in macdesk-dock-geometry macdesk-desktop-icons-right; do
+  cp "$BASE/config/autostart/$entry.desktop" /root/.config/autostart/
+done
+# Draw dock modules inside the rounded panel, without separate rectangular surfaces.
+for module in docklike cpugraph; do
+  module_file="/usr/share/xfce4/panel/plugins/$module.desktop"
+  if [ -f "$module_file" ] && ! grep -q '^X-XFCE-Internal=true$' "$module_file"; then
+    cp -n "$module_file" "$module_file.macdesk-backup" || true
+    sed -i '/^X-XFCE-Internal=/d' "$module_file"
+    printf '\nX-XFCE-Internal=true\n' >> "$module_file"
+  fi
+done
+xfconf-query -c xfce4-panel -p /panels -a -t int -t int -s 1 -s 2
+setprop() { xfconf-query -c xfce4-panel -p "$1" -n -t "$2" -s "$3"; }
+setprop /panels/panel-2/position string 'p=10;x=0;y=0'
+setprop /panels/panel-2/position-locked bool true
+setprop /panels/panel-2/mode uint 0
+setprop /panels/panel-2/size uint 76
+setprop /panels/panel-2/icon-size uint 48
+setprop /panels/panel-2/length uint 1
+setprop /panels/panel-2/length-adjust bool true
+setprop /panels/panel-2/span-monitors bool false
+setprop /panels/panel-2/autohide-behavior uint 0
+setprop /panels/panel-2/disable-struts bool false
+setprop /panels/panel-2/enter-opacity uint 100
+setprop /panels/panel-2/leave-opacity uint 100
+setprop /panels/panel-2/background-style uint 0
+xfconf-query -c xfce4-panel -p /panels/panel-2/background-rgba -n -a -t double -t double -t double -t double -s 0 -s 0 -s 0 -s 0
+setprop /plugins/plugin-25 string separator
+setprop /plugins/plugin-25/style uint 0
+setprop /plugins/plugin-25/expand bool false
+setprop /plugins/plugin-26 string separator
+setprop /plugins/plugin-26/style uint 0
+setprop /plugins/plugin-26/expand bool false
+setprop /plugins/plugin-20 string docklike
+setprop /plugins/plugin-21 string separator
+setprop /plugins/plugin-21/style uint 1
+setprop /plugins/plugin-22 string cpugraph
+setprop /plugins/plugin-23 string separator
+setprop /plugins/plugin-23/style uint 1
+setprop /plugins/plugin-24 string launcher
+xfconf-query -c xfce4-panel -p /plugins/plugin-24/items -n -a -t string -s trash.desktop
+for number in 27 28 29; do
+  case "$number" in 27) mode=apps;; 28) mode=downloads;; 29) mode=control;; esac
+  setprop "/plugins/plugin-$number" string launcher
+  mkdir -p "/root/.config/xfce4/panel/launcher-$number"
+  cp "/root/MacDesk-V6/config/dock-hub/launchers/macdesk-$mode.desktop" "/root/.config/xfce4/panel/launcher-$number/"
+  xfconf-query -c xfce4-panel -p "/plugins/plugin-$number/items" -n -a -t string -s "macdesk-$mode.desktop"
+done
+for entry in "30:whatsapp" "31:chrome" "32:samsung-browser" "33:spotify"; do
+  number="${entry%%:*}"; app="${entry#*:}"
+  setprop "/plugins/plugin-$number" string launcher
+  mkdir -p "/root/.config/xfce4/panel/launcher-$number"
+  cp "/root/MacDesk-V6/config/dock-hub/launchers/macdesk-android-dock-$app.desktop" "/root/.config/xfce4/panel/launcher-$number/"
+  xfconf-query -c xfce4-panel -p "/plugins/plugin-$number/items" -n -a -t string -s "macdesk-android-dock-$app.desktop"
+done
+xfconf-query -c xfce4-panel -p /panels/panel-2/plugin-ids -n -a -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -s 25 -s 20 -s 30 -s 31 -s 32 -s 33 -s 21 -s 27 -s 28 -s 29 -s 22 -s 23 -s 24 -s 26
+/root/MacDesk-V6/scripts/macdesk-desktop-hub-setup
+
+
+# Rounded dock paints its own glass; avoid a rectangular compositor shadow.
+xfconf-query -c xfwm4 -p /general/show_dock_shadow -n -t bool -s false

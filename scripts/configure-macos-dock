@@ -1,0 +1,32 @@
+#!/bin/bash
+set -euo pipefail
+BASE="${MACDESK_ROOT:-$(cd -- "$(dirname -- "$0")/.." && pwd)}"
+mkdir -p "$BASE/state"
+[ -s "$BASE/state/dock-engine" ] || printf 'docklike\n' > "$BASE/state/dock-engine"
+schema=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
+gsettings set "$schema" alignment center
+gsettings set "$schema" items-alignment center
+gsettings set "$schema" position bottom
+gsettings set "$schema" pinned-only false
+gsettings set "$schema" current-workspace-only false
+gsettings set "$schema" auto-pinning false
+gsettings set "$schema" lock-items false
+gsettings set "$schema" hide-mode none
+gsettings set "$schema" show-dock-item false
+gsettings set "$schema" zoom-enabled true
+gsettings set "$schema" zoom-percent 150
+gsettings set "$schema" tooltips-enabled true
+# Focus follows deliberate clicks, as on macOS. Restored windows may receive focus.
+for property in click_to_focus focus_new focus_hint raise_on_click; do
+    xfconf-query -c xfwm4 -p "/general/$property" -n -t bool -s true
+done
+xfconf-query -c xfwm4 -p /general/raise_on_focus -n -t bool -s false
+xfconf-query -c xfwm4 -p /general/activate_action -n -t string -s bring
+
+# Docklike provides native hover previews and transient application icons.
+if [ "$(cat "${MACDESK_ROOT:-/root/MacDesk-V6}/state/dock-engine" 2>/dev/null)" = docklike ]; then
+  if ! grep -qx 'Hidden=true' /root/.config/autostart/plank.desktop; then
+    printf '\nHidden=true\n' >> /root/.config/autostart/plank.desktop
+  fi
+  "${MACDESK_ROOT:-/root/MacDesk-V6}/scripts/configure-docklike"
+fi

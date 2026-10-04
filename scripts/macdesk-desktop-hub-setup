@@ -1,0 +1,21 @@
+#!/usr/bin/python3
+import os,sys,json,subprocess
+from pathlib import Path
+root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'scripts/lib'))
+from macdesk_hub_model import HubModel
+# Use packaged WhiteSur as a fallback when the optional installed BigSur theme is absent.
+for name in ('BigSur','BigSur-dark'):
+ theme=Path.home()/'.local/share/icons'/name
+ if not (theme/'index.theme').exists():
+  theme.mkdir(parents=True,exist_ok=True)
+  fallback=Path.home()/'.local/share/icons/WhiteSur-MacDesk'
+  if not fallback.exists():
+   fallback.symlink_to(root/'assets/icons-clean/WhiteSur-MacDesk',target_is_directory=True)
+  (theme/'index.theme').write_text('[Icon Theme]\nName='+name+'\nInherits=WhiteSur-MacDesk,hicolor\nDirectories=\n')
+model=HubModel(root);model.sync_launchers()
+try:
+ preference=json.loads((root/'state/desktop-hub.json').read_text())
+ if 'dark' in preference:
+  for prop,value in [('/Net/ThemeName','Adwaita-dark' if preference['dark'] else 'Adwaita'),('/Net/IconThemeName','BigSur-dark' if preference['dark'] else 'BigSur')]:
+   subprocess.run(['xfconf-query','-c','xsettings','-p',prop,'-n','-t','string','-s',value],check=True)
+except (FileNotFoundError,ValueError):pass

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Spotify (Android)
+Comment=Abrir Spotify en Android
+Exec=/root/MacDesk-V6/scripts/macdesk-android-open com.spotify.music
+Icon=/root/MacDesk-V6/assets/icons/apps/android-spotify-macos.svg
+Terminal=false
+StartupNotify=false
+Categories=Utility;

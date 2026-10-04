@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Samsung Internet (Android)
+Comment=Abrir Samsung Internet en Android
+Exec=/root/MacDesk-V6/scripts/macdesk-android-open com.sec.android.app.sbrowser
+Icon=/root/MacDesk-V6/assets/icons/apps/android-samsung-browser-macos.svg
+Terminal=false
+StartupNotify=false
+Categories=Utility;

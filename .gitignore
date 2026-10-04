@@ -41,3 +41,9 @@ Login Data-journal
 *.key
 id_rsa
 id_ed25519
+
+# Runtime catalogs, selections, bridge responses, sessions and Python caches
+state/
+__pycache__/
+*.py[cod]
+*.fifo

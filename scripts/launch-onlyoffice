@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
+export HOME="${HOME:-/root}"
+export QT_QPA_PLATFORM=xcb
+export QT_X11_NO_MITSHM=1
+export QTWEBENGINE_DISABLE_SANDBOX=1
+export LIBGL_ALWAYS_SOFTWARE=true
+unset LD_LIBRARY_PATH LIBGL_DRIVERS_PATH GALLIUM_DRIVER MESA_GL_VERSION_OVERRIDE VTEST_SOCKET_NAME
+
+if [ -x /usr/bin/onlyoffice-desktopeditors ]; then
+  BIN=/usr/bin/onlyoffice-desktopeditors
+elif [ -x /usr/bin/desktopeditors ]; then
+  BIN=/usr/bin/desktopeditors
+elif [ -x /opt/onlyoffice/desktopeditors/DesktopEditors ]; then
+  BIN=/opt/onlyoffice/desktopeditors/DesktopEditors
+else
+  echo "ONLYOFFICE Desktop Editors is not installed" >&2
+  exit 127
+fi
+
+export GDK_BACKEND="${GDK_BACKEND:-x11}"
+export NO_AT_BRIDGE=1
+export GTK_USE_PORTAL=0
+export LD_PRELOAD=/usr/local/lib/macdesk/gtkinit.so${LD_PRELOAD:+:$LD_PRELOAD}
+exec "$BIN" --no-sandbox "$@"

@@ -1,0 +1,16 @@
+#!/usr/bin/python3
+"""Resolve Android dock shortcuts against the current installed-app catalog."""
+import sys,subprocess
+from pathlib import Path
+root=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(root/'scripts/lib'))
+from macdesk_hub_model import HubModel
+from macdesk_android_client import request
+try:
+    package=sys.argv[1]
+    app=next((a for a in HubModel(root).catalog() if a['package']==package),None)
+    if not app: raise ValueError('La app no está disponible. Actualiza la lista en Aplicaciones.')
+    request({'action':'launch','component':app['component']})
+except (IndexError,ValueError,RuntimeError) as error:
+    subprocess.run(['notify-send','MacDesk — Android',str(error)])
+    sys.exit(1)

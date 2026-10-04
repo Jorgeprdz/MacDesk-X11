@@ -1,0 +1,21 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+export DISPLAY="${DISPLAY:-:2}"
+export WINEPREFIX="$HOME/.local/share/wineprefixes/lineaindividual"
+export WINEDEBUG=-all
+export HODLL64=libarm64ecfex.dll
+export HODLL=libwow64fex.dll
+export WINEDLLOVERRIDES='winemenubuilder.exe=d'
+wine=/data/data/com.termux/files/usr/bin/hangover-wine
+case "${1:-run}" in
+ install)
+  mkdir -p "$WINEPREFIX"
+  "$wine" msiexec /i "$HOME/macdesk-maintenance/LineaIndividualApp-7.5-wine.msi" /qn /norestart /L*v "$HOME/macdesk-maintenance/linea-msi.log"
+  echo MSI_INSTALL_OK
+  ;;
+ run)
+  cd "$WINEPREFIX/drive_c/Program Files/LineaIndividualApp"
+  exec "$wine" ./LineaIndividualApp.exe
+  ;;
+ *) exit 2;;
+esac

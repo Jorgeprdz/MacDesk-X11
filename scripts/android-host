@@ -1,0 +1,90 @@
+#!/data/data/com.termux/files/usr/bin/python
+"""Host-only Android bridge. Called in the existing Termux dispatcher context."""
+import base64,json,mimetypes,os,re,shlex,subprocess,sys,time
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'scripts/lib'))
+from macdesk_hub_model import HubModel,SETTINGS_PAGES,validate_request,atomic_json
+PREFIX=Path('/data/data/com.termux/files/usr');STATE=ROOT/'state/android-apps';STATE.mkdir(parents=True,exist_ok=True)
+MODEL=HubModel(ROOT)
+
+def run(args,timeout=18):
+ p=subprocess.run([str(a) for a in args],text=True,capture_output=True,timeout=timeout)
+ if p.returncode:raise RuntimeError((p.stderr or p.stdout or 'No se pudo contactar con Android').strip()[-500:])
+ return p.stdout.strip()
+
+def device():
+ output=run([PREFIX/'bin/adb','devices'],6)
+ online=[line.split()[0] for line in output.splitlines()[1:] if len(line.split())==2 and line.split()[1]=='device']
+ preferred=(STATE/'adb-device').read_text().strip() if (STATE/'adb-device').exists() else ''
+ if preferred in online:return preferred
+ if 'emulator-5554' in online:return 'emulator-5554'
+ if len(online)==1:return online[0]
+ raise RuntimeError('El puente Android no está conectado. Abre Termux y reconecta ADB inalámbrico.')
+
+def shell(*args):return run([PREFIX/'bin/adb','-s',device(),'shell',shlex.join([str(a) for a in args])])
+
+def status():
+ volume=shell('cmd','media_session','volume','--get','--stream','3')
+ match=re.search(r'volume is (\d+) in range \[0\.\.(\d+)\]',volume)
+ battery=shell('dumpsys','battery');level=re.search(r'^\s*level:\s*(\d+)',battery,re.M)
+ brightness=shell('settings','get','system','screen_brightness')
+ return {'volume':round(int(match[1])*100/max(1,int(match[2]))) if match else None,'volume_max':int(match[2]) if match else 15,'brightness':round(int(brightness)*100/255) if brightness.isdigit() else None,'battery':int(level[1]) if level else None,'charging':bool(re.search(r'(?:AC|USB|Wireless) powered: true',battery)),'connected':True}
+
+def handle(request):
+ validate_request(request,MODEL.catalog());action=request['action']
+ if action=='catalog':
+  dex=ROOT/'tools/android-bridge/macdesk-android.dex'
+  dex.chmod(0o444)
+  env=dict(os.environ,CLASSPATH=str(dex));p=subprocess.run(['/system/bin/app_process','/system/bin','MacDeskAndroid',str(STATE)],env=env,text=True,capture_output=True,timeout=90)
+  if p.returncode:raise RuntimeError((p.stderr or 'No se pudo actualizar el catálogo').strip()[-400:])
+  return {'count':len(MODEL.catalog())}
+ if action=='status':return status()
+ if action=='launch':
+  out=shell('am','start','--user','0','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER','-n',request['component'],'-f','0x10200000')
+  if 'Error:' in out:raise RuntimeError(out[-400:])
+  return {'launched':request['component']}
+ if action=='settings':
+  out=shell('am','start','--user','0','-a',SETTINGS_PAGES[request['page']])
+  if 'Error:' in out:raise RuntimeError(out[-400:])
+  return {'page':request['page']}
+ if action=='volume':
+  current=status();target=round(request['value']*current['volume_max']/100)
+  shell('cmd','media_session','volume','--set',target,'--stream','3')
+  return {'volume':round(target*100/current['volume_max'])}
+ if action=='brightness':
+  target=max(1,round(request['value']*255/100))
+  shell('settings','put','system','screen_brightness_mode','0');shell('settings','put','system','screen_brightness',target)
+  return {'brightness':round(target*100/255)}
+ if action=='open':
+  path=Path(request['path']).resolve();base=Path('/sdcard/Download').resolve()
+  if not path.is_relative_to(base) or not path.is_file():raise ValueError('El archivo ya no está disponible en Descargas')
+  # MediaStore owns public Downloads and can grant native viewers read access.
+  where="_data='"+str(path).replace("'","''")+"'"
+  def media_id():
+   output=shell('content','query','--uri','content://media/external/file','--projection','_id:mime_type','--where',where)
+   match=re.search(r'_id=(\d+)',output)
+   return match[1] if match else None
+  identifier=media_id()
+  if not identifier:
+   shell('am','broadcast','--user','0','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d',path.as_uri())
+   for _ in range(8):
+    time.sleep(.25);identifier=media_id()
+    if identifier:break
+  if not identifier:raise RuntimeError('Android aún no ha indexado este archivo. Usa Abrir carpeta para abrirlo desde MacDesk.')
+  out=shell('am','start','--user','0','-a','android.intent.action.VIEW','-t',mimetypes.guess_type(path.name)[0] or 'application/octet-stream','-d','content://media/external/file/'+identifier,'-f','0x10000001')
+  if 'Error:' in out:raise RuntimeError(out[-400:])
+  return {'opened':path.name}
+ raise ValueError('Acción desconocida')
+
+def main():
+ request_id=sys.argv[1]
+ if not re.fullmatch(r'[a-f0-9]{32}',request_id):raise ValueError('Invalid request id')
+ response={'ok':False}
+ try:
+  request=json.loads(base64.b64decode(sys.argv[2],validate=True));response={'ok':True,**handle(request)}
+ except Exception as error:response={'ok':False,'error':str(error)}
+ results=STATE/'responses';results.mkdir(mode=0o700,exist_ok=True)
+ atomic_json(results/(request_id+'.json'),response)
+ print(json.dumps(response,ensure_ascii=False))
+if __name__=='__main__':main()

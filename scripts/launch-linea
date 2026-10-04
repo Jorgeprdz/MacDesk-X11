@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+fifo="${MACDESK_ROOT:-/root/MacDesk-V6}/state/host-app.fifo"
+[ -p "$fifo" ] || { echo 'Inicia MacDesk antes de abrir LineaIndividualApp.' >&2; exit 1; }
+timeout 3 bash -c 'printf "LINEA\trun\n" > "$1"' bash "$fifo"

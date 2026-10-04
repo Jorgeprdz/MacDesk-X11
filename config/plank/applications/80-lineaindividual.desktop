@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Linea Individual 7.5
+Comment=LineaIndividualApp con Wine
+Exec=/root/MacDesk-V6/scripts/dock-open-or-focus linea
+Icon=/root/.local/share/icons/LineaIndividual-glass.png
+Terminal=false
+Categories=Office;Finance;
+StartupNotify=false
+StartupWMClass=lineaindividualapp.exe
+NoDisplay=false

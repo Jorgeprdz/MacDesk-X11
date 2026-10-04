@@ -3,7 +3,11 @@ set -u
 
 export DISPLAY="${DISPLAY:-:2}"
 
-BASE=/data/data/com.termux/files/home/MacDesk-V6
+BASE="${MACDESK_ROOT:-$(cd -- "$(dirname -- "$0")/.." && pwd)}"
+export MACDESK_ROOT="$BASE"
+if [ "$(cat "$BASE/state/dock-engine" 2>/dev/null)" = docklike ]; then
+  exec "$BASE/scripts/dock-geometry-listener"
+fi
 SCHEMA=net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/
 RUNTIME_LOG="$BASE/logs/plank-runtime.log"
 
@@ -39,9 +43,8 @@ restart_plank() {
     attempts=$((attempts + 1))
     sleep .1
   done
-  # Plank gets a short dedicated session bus so it can always read the saved
-  # dconf state even if the long-lived XFCE session bus has gone stale.
-  dbus-run-session -- plank --name dock1 >>"$RUNTIME_LOG" 2>&1 &
+  # Reuse the owning XFCE session bus; never create a second dock bus.
+  plank --name dock1 >>"$RUNTIME_LOG" 2>&1 &
   printf '%s geometry=%s dock=%s action=restart\n' \
     "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$1" "$2" >>"$RUNTIME_LOG"
 }

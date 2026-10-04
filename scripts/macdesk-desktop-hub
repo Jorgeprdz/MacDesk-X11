@@ -1,0 +1,13 @@
+#!/usr/bin/python3
+import os,sys
+from pathlib import Path
+root=Path(__file__).resolve().parents[1];os.environ['MACDESK_ROOT']=str(root);sys.path.insert(0,str(root/'scripts/lib'))
+if len(sys.argv)>1 and sys.argv[1]=='launch':
+ from macdesk_android_client import request
+ try:request({'action':'launch','component':sys.argv[2]})
+ except Exception as error:
+  import gi;gi.require_version('Gtk','3.0');from gi.repository import Gtk
+  dialog=Gtk.MessageDialog(message_type=Gtk.MessageType.ERROR,buttons=Gtk.ButtonsType.CLOSE,text='No se pudo abrir la app de Android');dialog.format_secondary_text(str(error));dialog.run();dialog.destroy();sys.exit(1)
+else:
+ from macdesk_hub import HubApplication
+ sys.exit(HubApplication(testing=os.environ.get('MACDESK_HUB_TEST')=='1').run(sys.argv))

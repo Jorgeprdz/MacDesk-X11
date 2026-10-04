@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Aplicaciones
+Comment=Aplicaciones de MacDesk
+Exec=/root/MacDesk-V6/scripts/macdesk-desktop-hub apps
+Icon=folder-android
+Terminal=false
+StartupNotify=false
+Categories=Utility;

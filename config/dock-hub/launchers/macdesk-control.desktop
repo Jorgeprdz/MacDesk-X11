@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Centro de control
+Comment=Centro de control de MacDesk
+Exec=/root/MacDesk-V6/scripts/macdesk-desktop-hub control
+Icon=/root/MacDesk-V6/assets/icons/apps/macdesk-control-center.svg
+Terminal=false
+StartupNotify=false
+Categories=Utility;

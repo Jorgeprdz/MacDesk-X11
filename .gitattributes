@@ -1,0 +1,3 @@
+
+# Unified diff context deliberately retains upstream whitespace.
+tools/docklike/macdesk.patch -whitespace

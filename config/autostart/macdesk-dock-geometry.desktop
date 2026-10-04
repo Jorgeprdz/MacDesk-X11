@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=MacDesk Dock Geometry
+Exec=/root/MacDesk-V6/scripts/plank-geometry-guard
+OnlyShowIn=XFCE;
+StartupNotify=false
+Terminal=false
+X-GNOME-Autostart-enabled=true

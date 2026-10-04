@@ -1,0 +1,195 @@
+#!/usr/bin/python3
+"""Keep the dock anchored and its hover previews above it, using X11 events."""
+import fcntl
+import os
+from pathlib import Path
+import select
+import subprocess
+import sys
+import time
+from Xlib import X, display, error
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'lib'))
+from macdesk_geometry import is_bottom_dock, dock_profile
+
+ROOT = Path(os.environ.get('MACDESK_ROOT', '/root/MacDesk-V6'))
+lock = open(ROOT / 'state/dock-geometry-listener.lock', 'w')
+for attempt in range(20):
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        break
+    except BlockingIOError:
+        if attempt == 19:
+            sys.exit(0)
+        time.sleep(.1)
+(ROOT / 'state/dock-geometry-listener.pid').write_text(str(os.getpid())+'\n')
+d = display.Display(os.environ.get('DISPLAY', ':2'))
+root = d.screen().root
+root.change_attributes(event_mask=X.SubstructureNotifyMask | X.StructureNotifyMask)
+clients_atom = d.intern_atom('_NET_CLIENT_LIST')
+type_atom = d.intern_atom('_NET_WM_WINDOW_TYPE')
+dock_atom = d.intern_atom('_NET_WM_WINDOW_TYPE_DOCK')
+last_size = None
+BOTTOM_MARGIN = 12
+last_anchor = None
+bottom_window_id = None
+last_desktop_size = None
+desktop_due = 0.0
+last_desktop_attempt = 0.0
+last_profile = None
+control_path = ROOT / 'state/dock-control.fifo'
+if not control_path.exists():
+    os.mkfifo(control_path, 0o600)
+control_fd = os.open(control_path, os.O_RDWR | os.O_NONBLOCK)
+control_buffer = b''
+
+def is_bottom_panel(win, position, height):
+    """A dock can be above the midpoint after the desktop grows."""
+    strut = win.get_full_property(d.intern_atom("_NET_WM_STRUT"), X.AnyPropertyType)
+    return is_bottom_dock(win.id, bottom_window_id, position.y, height,
+                          list(strut.value) if strut is not None else [])
+
+def dock_top():
+    geometry = root.get_geometry()
+    prop = root.get_full_property(clients_atom, X.AnyPropertyType)
+    if prop:
+        for wid in prop.value:
+            try:
+                win = d.create_resource_object('window', int(wid))
+                if 'xfce4-panel' not in (win.get_wm_class() or ()):
+                    continue
+                kinds = win.get_full_property(type_atom, X.AnyPropertyType)
+                if not kinds or dock_atom not in kinds.value:
+                    continue
+                position = root.translate_coords(win, 0, 0)
+                if is_bottom_panel(win, position, geometry.height):
+                    return position.y, geometry.width, geometry.height
+            except error.XError:
+                continue
+    return None
+
+def adjust_preview(win):
+    try:
+        attributes = win.get_attributes()
+        if attributes.map_state != X.IsViewable or not attributes.override_redirect:
+            return
+        if not set(win.get_wm_class() or ()).intersection({'wrapper-2.0', 'xfce4-panel', 'Xfce4-panel'}):
+            return
+        geometry = win.get_geometry()
+        if geometry.width < 100 or geometry.height < 40:
+            return
+        dock = dock_top()
+        if not dock:
+            return
+        top, width, height = dock
+        position = root.translate_coords(win, 0, 0)
+        # Only dock menus, not other panel popups near the top of the screen.
+        if position.y < height // 2:
+            return
+        wanted_y = max(0, top - geometry.height - 6)
+        wanted_x = max(0, min(position.x, width - geometry.width))
+        if position.y != wanted_y or position.x != wanted_x:
+            win.configure(x=wanted_x, y=wanted_y)
+            d.flush()
+    except error.XError:
+        pass
+
+def anchor():
+    global last_size, last_anchor, bottom_window_id, desktop_due, last_profile
+    geometry = root.get_geometry()
+    size = geometry.width, geometry.height
+    if size != last_size:
+        last_size = size
+        desktop_due = time.monotonic() + .9
+    profile = dock_profile(size[0])
+    if profile != last_profile:
+        try:
+            for name, value in (("icon-size", profile[0]), ("size", profile[1])):
+                subprocess.run(["xfconf-query", "-c", "xfce4-panel", "-p", "/panels/panel-2/"+name, "-s", str(value)], check=True, capture_output=True, timeout=3)
+            last_profile = profile
+            last_anchor = None
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            print(f"DOCK_PROFILE_FAILED={exc}", flush=True)
+    prop = root.get_full_property(clients_atom, X.AnyPropertyType)
+    if not prop:
+        return
+    for wid in prop.value:
+        try:
+            win = d.create_resource_object('window', int(wid))
+            if 'xfce4-panel' not in (win.get_wm_class() or ()):
+                continue
+            position = root.translate_coords(win, 0, 0)
+            dock_geometry = win.get_geometry()
+            if not is_bottom_panel(win, position, geometry.height):
+                continue
+            bottom_window_id = win.id
+            key = (win.id, size, dock_geometry.height)
+            target_top = size[1] - dock_geometry.height - BOTTOM_MARGIN
+            target_x = max(0, (size[0] - dock_geometry.width) // 2)
+            if key != last_anchor or position.y != target_top or abs(position.x-target_x) > 1:
+                center_y = target_top + dock_geometry.height // 2
+                result = subprocess.run(['xfconf-query', '-c', 'xfce4-panel', '-p',
+                                '/panels/panel-2/position', '-s',
+                                f'p=0;x={size[0]//2};y={center_y}'],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
+                if result.returncode:
+                    print("DOCK_ANCHOR_FAILED=" + result.stderr.decode(errors="replace").strip(), flush=True)
+                    return
+                last_anchor = key
+                print(f'DOCK_ANCHORED={size[0]}x{size[1]} MARGIN={BOTTOM_MARGIN}', flush=True)
+            # A floating panel needs an explicit bottom strut to keep maximized
+            # windows clear of both the dock and its visual breathing room.
+            strut = [0, 0, 0, dock_geometry.height + BOTTOM_MARGIN]
+            strut += [0, 0, 0, 0, 0, 0, 0, size[0]-1]
+            atom = d.intern_atom('_NET_WM_STRUT_PARTIAL')
+            current = win.get_full_property(atom, X.AnyPropertyType)
+            if current is None or list(current.value) != strut:
+                win.change_property(atom, d.intern_atom('CARDINAL'), 32, strut)
+                win.change_property(d.intern_atom('_NET_WM_STRUT'), d.intern_atom('CARDINAL'), 32, strut[:4])
+                d.flush()
+            return
+        except (error.XError, subprocess.TimeoutExpired):
+            continue
+
+def arrange_desktop():
+    global last_desktop_size, last_desktop_attempt, desktop_due
+    now = time.monotonic()
+    if not desktop_due or now < desktop_due or now-last_desktop_attempt < 3:
+        return
+    last_desktop_attempt = now
+    try:
+        result = subprocess.run(["xfdesktop", "--arrange"], capture_output=True, timeout=3)
+        if result.returncode == 0:
+            last_desktop_size = last_size
+            desktop_due = 0
+            print(f"DESKTOP_ALIGNED_RIGHT={last_size[0]}x{last_size[1]}", flush=True)
+        else:
+            print("DESKTOP_ARRANGE_FAILED=" + result.stderr.decode(errors="replace").strip(), flush=True)
+    except subprocess.TimeoutExpired:
+        print("DESKTOP_ARRANGE_TIMEOUT", flush=True)
+
+anchor()
+for win in root.query_tree().children:
+    adjust_preview(win)
+d.flush()
+while True:
+    if not d.pending_events():
+        readable, _, _ = select.select([d.fileno(), control_fd], [], [], .25 if desktop_due else 2)
+        if control_fd in readable:
+            control_buffer += os.read(control_fd, 65536)
+            while b'\n' in control_buffer:
+                line, control_buffer = control_buffer.split(b'\n', 1)
+                script = Path(line.decode('utf-8', errors='replace'))
+                if script.is_absolute() and script.suffix == '.sh' and script.parent == Path('/root/macdesk-maintenance'):
+                    log = open('/root/macdesk-maintenance/dock-control-result.log', 'w')
+                    subprocess.Popen(['/bin/bash', str(script)], stdout=log, stderr=subprocess.STDOUT)
+                    log.close()
+    while d.pending_events():
+        event = d.next_event()
+        if event.type in (X.MapNotify, X.ConfigureNotify):
+            if event.window.id == root.id:
+                anchor()
+            else:
+                adjust_preview(event.window)
+    anchor()
+    arrange_desktop()

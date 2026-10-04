@@ -2,7 +2,8 @@
 set -u
 
 export DISPLAY="${DISPLAY:-:2}"
-BASE=/data/data/com.termux/files/home/MacDesk-V6
+BASE="${MACDESK_ROOT:-$(cd -- "$(dirname -- "$0")/.." && pwd)}"
+export MACDESK_ROOT="$BASE"
 STATE="$BASE/state/session-health.env"
 LOG="$BASE/logs/session-health.log"
 firefox_failures=0
@@ -57,12 +58,16 @@ log_transition() {
 }
 
 plank_guard_is_healthy() {
-  guard_pid="$(cat "$BASE/state/plank-geometry-guard.pid" 2>/dev/null || true)"
+  guard_file="$BASE/state/plank-geometry-guard.pid"
+  if [ "$(cat "$BASE/state/dock-engine" 2>/dev/null)" = docklike ]; then
+    guard_file="$BASE/state/dock-geometry-listener.pid"
+  fi
+  guard_pid="$(cat "$guard_file" 2>/dev/null || true)"
   case "$guard_pid" in ""|*[!0-9]*) return 1 ;; esac
   kill -0 "$guard_pid" 2>/dev/null || return 1
   [ "$(process_state "$guard_pid" 2>/dev/null || true)" != Z ] || return 1
   guard_cmd="$(tr "\0" " " <"/proc/$guard_pid/cmdline" 2>/dev/null || true)"
-  case "$guard_cmd" in *"/MacDesk-V6/scripts/plank-geometry-guard"*) return 0 ;; esac
+  case "$guard_cmd" in *"$BASE/scripts/plank-geometry-guard"*|*"$BASE/scripts/dock-geometry-listener"*) return 0 ;; esac
   return 1
 }
 
