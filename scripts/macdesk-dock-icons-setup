@@ -1,0 +1,23 @@
+#!/usr/bin/python3
+"""Keep fixed dock icons independent of optional themes and GTK icon sizes."""
+from pathlib import Path
+import subprocess
+root=Path(__file__).resolve().parents[1]
+home=Path.home()
+icons={'macdesk-nautilus.desktop':'finder.svg','20-firefox.desktop':'firefox.svg',
+       '80-lineaindividual.desktop':'linea-individual.png','40-terminal.desktop':'terminal.svg',
+       '90-trash.desktop':'trash.svg','trash.desktop':'trash.svg',
+       'macdesk-apps.desktop':'applications.svg','macdesk-downloads.desktop':'downloads.svg'}
+for filename,icon in icons.items():
+    targets=[home/'.local/share/applications'/filename]
+    targets.extend((home/'.config/xfce4/panel').glob('launcher-*/'+filename))
+    for path in targets:
+        if not path.is_file():continue
+        lines=path.read_text().splitlines()
+        lines=[('Icon='+str(root/'assets/icons/dock'/icon)) if line.startswith('Icon=') else line for line in lines]
+        path.write_text('\n'.join(lines)+'\n')
+
+# The stock panel referred to an Adwaita file absent in this Debian image.
+plugin=subprocess.run(['xfconf-query','-c','xfce4-panel','-p','/plugins/plugin-1'],capture_output=True,text=True)
+if plugin.stdout.strip()=='applicationsmenu':
+    subprocess.run(['xfconf-query','-c','xfce4-panel','-p','/plugins/plugin-1/button-icon','-n','-t','string','-s',str(root/'assets/icons/dock/apple-menu.svg')],check=True)

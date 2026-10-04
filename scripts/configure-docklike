@@ -74,6 +74,7 @@ for entry in "30:whatsapp" "31:chrome" "32:samsung-browser" "33:spotify" "34:cha
 done
 xfconf-query -c xfce4-panel -p /panels/panel-2/plugin-ids -n -a -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -t int -s 25 -s 20 -s 30 -s 31 -s 32 -s 33 -s 34 -s 35 -s 36 -s 21 -s 27 -s 28 -s 29 -s 22 -s 23 -s 24 -s 26
 /root/MacDesk-V6/scripts/macdesk-desktop-hub-setup
+"$BASE/scripts/macdesk-dock-icons-setup"
 
 
 # Rounded dock paints its own glass; avoid a rectangular compositor shadow.

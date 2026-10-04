@@ -1,0 +1,17 @@
+#!/bin/sh
+# Run within the active XFCE session. Never target remembered process IDs.
+set -eu
+[ -n "${DISPLAY:-}" ] && [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || {
+  echo 'Ejecuta este comando dentro de la sesión de MacDesk.' >&2; exit 1;
+}
+dbus-send --session --type=method_call --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null
+base=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$base/logs"
+if ! pgrep -x xfwm4 >/dev/null; then
+  xfwm4 --replace >>"$base/logs/xfwm-recovery.log" 2>&1 &
+fi
+if ! pgrep -x xfdesktop >/dev/null; then
+  xfdesktop >>"$base/logs/xfdesktop-recovery.log" 2>&1 &
+fi
+"$base/scripts/macdesk-dock-icons-setup"
+timeout 15 xfce4-panel --restart

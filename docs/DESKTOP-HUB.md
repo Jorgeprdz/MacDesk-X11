@@ -80,3 +80,11 @@ Vista de referencia con contenido **sintético**, sin mensajes del teléfono:
 Las horas de las tarjetas de notificaciones usan `America/Mexico_City`, independientemente de la zona horaria de Android o Linux.
 
 El dock incluye también ChatGPT (`com.openai.chatgpt`), Chromium (`org.chromium.chrome`) y NewTermux (`com.termux`), con iconos del estilo macOS. Los accesos resuelven la actividad desde el catálogo instalado y reutilizan el puente Android.
+
+## Iconos y actualización del escritorio
+
+Los iconos fijos de Finder, Firefox, Terminal, Línea Individual, Aplicaciones, Descargas y Papelera se guardan en `assets/icons/dock/`. Usan rutas explícitas para evitar variantes pequeñas o iconos genéricos del tema al reiniciar. Se conservan los comandos y clases de ventana de cada aplicación. Los recursos de Finder, Firefox, Terminal, Descargas, Papelera y menú proceden de WhiteSur ya incluido en el repositorio; Línea Individual conserva su imagen local.
+
+Desde una terminal dentro de MacDesk ejecuta `~/MacDesk-V6/scripts/macdesk-refresh-desktop` para actualizar. Comprueba el bus de sesión activo, recupera `xfwm4` o `xfdesktop` si faltan, aplica los iconos y solicita el reinicio normal del panel. No utiliza PIDs guardados ni reinicia la sesión XFCE completa.
+
+Validación en DeX: escritorio y wallpaper recuperados, panel reiniciado con salida 0, `xfwm4` y `xfdesktop` permanecen activos y captura posterior revisada. Las capturas reales quedan localmente; no se publican porque pueden incluir ventanas personales.
