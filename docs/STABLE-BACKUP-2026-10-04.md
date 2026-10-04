@@ -14,7 +14,7 @@ Estado probado en el Samsung con Android/DeX, Termux, Debian PRoot y Termux:X11 
 ## Restaurar en el mismo entorno
 
 1. Mantener el repo en `$HOME/MacDesk-V6` de Termux. Debian debe montarlo como `/root/MacDesk-V6`; se mantiene el display `:2`.
-2. Tener instalados XFCE, xfce4-panel, xfce4-docklike-plugin 0.4.3, xfce4-cpugraph-plugin, python3-gi, python3-xlib, GTK3, wmctrl, desktop-file-utils y dbus-x11. El binario Docklike guardado requiere las bibliotecas ABI de la instalación Debian existente.
+2. Tener instalados XFCE, xfce4-panel, xfce4-docklike-plugin 0.4.3, xfce4-cpugraph-plugin, python3-gi, python3-gi-cairo, python3-xlib, GTK3, wmctrl, desktop-file-utils y dbus-x11. El binario Docklike guardado requiere las bibliotecas ABI de la instalación Debian existente.
 3. En Termux: Python, ADB inalámbrico ya conectado, Termux:X11 y proot-distro. Dar acceso al almacenamiento Android con el mecanismo existente de Termux.
 4. Iniciar con `scripts/macdesk`. `configure-macos-dock` crea el motor Docklike por defecto; `configure-docklike` instala el plugin, CSS, launchers y autostarts. Reutiliza la configuración y preferencias ya existentes.
 5. Si se restaura sin estado privado, abrir Aplicaciones → Elegir apps de Android → Actualizar lista, elegir las apps y Guardar. Esto reconstruye el catálogo e iconos desde el teléfono. Los cuatro accesos fijos quedan funcionales después de actualizar el catálogo.

@@ -3,6 +3,7 @@ import os,sys,json,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'scripts/lib'))
 from macdesk_hub_model import HubModel
+from macdesk_appearance import desktop_values
 # Use packaged WhiteSur as a fallback when the optional installed BigSur theme is absent.
 for name in ('BigSur','BigSur-dark'):
  theme=Path.home()/'.local/share/icons'/name
@@ -13,9 +14,17 @@ for name in ('BigSur','BigSur-dark'):
    fallback.symlink_to(root/'assets/icons-clean/WhiteSur-MacDesk',target_is_directory=True)
   (theme/'index.theme').write_text('[Icon Theme]\nName='+name+'\nInherits=WhiteSur-MacDesk,hicolor\nDirectories=\n')
 model=HubModel(root);model.sync_launchers()
+# This binding belongs to XFCE, so it is active only inside MacDesk/X11.
+shortcut='/commands/custom/<Primary><Alt>space'
+command=str(root/'scripts/macdesk-desktop-hub')+' apps'
+existing=subprocess.run(['xfconf-query','-c','xfce4-keyboard-shortcuts','-p',shortcut],text=True,capture_output=True)
+if not existing.stdout.strip() or existing.stdout.strip()==command:
+ subprocess.run(['xfconf-query','-c','xfce4-keyboard-shortcuts','-p',shortcut,'-n','-t','string','-s',command],check=True)
+else:print('Ctrl+Alt+Espacio ya tiene otra acción; se conservó el atajo existente.')
 try:
  preference=json.loads((root/'state/desktop-hub.json').read_text())
  if 'dark' in preference:
-  for prop,value in [('/Net/ThemeName','Adwaita-dark' if preference['dark'] else 'Adwaita'),('/Net/IconThemeName','BigSur-dark' if preference['dark'] else 'BigSur')]:
-   subprocess.run(['xfconf-query','-c','xsettings','-p',prop,'-n','-t','string','-s',value],check=True)
+  for channel,prop,value in desktop_values(preference['dark']):
+   if channel=='gnome':subprocess.run(['gsettings','set','org.gnome.desktop.interface',prop,value],check=True)
+   else:subprocess.run(['xfconf-query','-c',channel,'-p',prop,'-n','-t','string','-s',value],check=True)
 except (FileNotFoundError,ValueError):pass

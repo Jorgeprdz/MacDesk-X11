@@ -1,11 +1,14 @@
 """On-demand GTK3 dock stacks and Android control center."""
 import os,subprocess,threading,unicodedata
+from datetime import datetime
 from pathlib import Path
 import gi
 gi.require_version('Gtk','3.0');gi.require_version('Gdk','3.0')
 from gi.repository import Gtk,Gdk,GdkPixbuf,Gio,GLib,Pango
 from macdesk_hub_model import HubModel,atomic_json
 from macdesk_android_client import request
+from macdesk_appearance import apply_global_dark
+from macdesk_flip import FlipStack
 
 CSS='''
 #macdesk-hub { background: rgba(233,237,244,.94); border: 1px solid rgba(255,255,255,.72); border-radius: 22px; color: #242a35; }
@@ -27,6 +30,12 @@ CSS='''
 #macdesk-hub scrollbar { background: transparent; }
 #macdesk-hub checkbutton { padding: 6px; }
 #macdesk-hub check { border-radius: 5px; }
+#macdesk-hub .notification-card { background: rgba(255,255,255,.82); border-radius: 20px; padding: 14px; }
+#macdesk-hub .notification-app { font-size: 12px; font-weight: bold; color: #586176; }
+#macdesk-hub .notification-title { font-size: 15px; font-weight: bold; }
+#macdesk-hub .notification-body { font-size: 13px; color: #4a5160; }
+#macdesk-hub.dark .notification-card { background: rgba(66,72,84,.86); }
+#macdesk-hub.dark .notification-app, #macdesk-hub.dark .notification-body { color: #cbd2e0; }
 #macdesk-hub.dark { background: rgba(35,39,48,.94); border-color: rgba(255,255,255,.24); }
 #macdesk-hub.dark * { color: #f2f4f8; }
 #macdesk-hub.dark .hub-subtitle { color: #b6becb; }
@@ -81,7 +90,7 @@ class HubWindow(Gtk.ApplicationWindow):
   elif mode=='choose':self.choose_ui()
   else:self.control_ui()
   self.box.pack_end(self.notice,False,False,0)
-  self.set_default_size(600 if mode in ('apps','downloads','choose') else 430,480 if mode!='control' else 470)
+  self.set_default_size(600 if mode in ('apps','downloads','choose') else 430,480 if mode!='control' else 530)
   self.show_all();self.initializing=False;GLib.timeout_add(60,self.anchor)
  def refresh_theme(self):
   dark='dark' in self.hub.xfget('xsettings','/Net/ThemeName','Adwaita').lower()
@@ -113,7 +122,7 @@ class HubWindow(Gtk.ApplicationWindow):
   self.status('Conectando con Android…')
   def worker():
    try:
-    response=request(payload,timeout=100 if payload['action']=='catalog' else 25,model=self.model)
+    response=request(payload,timeout=100 if payload['action']=='catalog' else 45 if payload['action']=='notifications' else 25,model=self.model)
     def complete():
      if not self.get_visible():return False
      self.status('')
@@ -149,7 +158,7 @@ class HubWindow(Gtk.ApplicationWindow):
    info.launch([],None);self.destroy()
   except Exception as error:self.status(str(error),True)
  def apps_ui(self):
-  self.box.pack_start(label('Tus apps elegidas de Android y las aplicaciones de MacDesk','hub-subtitle'),False,False,0)
+  self.box.pack_start(label('Ctrl+Alt+Espacio · Tus apps de Android y MacDesk','hub-subtitle'),False,False,0)
   search=self.add_search('Buscar aplicaciones…');flow=self.grid(self.scroller(270))
   for a in self.model.selected_apps():self.tile(flow,a['label'],lambda b,c=a['component']:self.android_launch(c),path=self.model.icon_path(a),badge='Android',tooltip=a['package'])
   for file in ('macdesk-nautilus.desktop','20-firefox.desktop','80-lineaindividual.desktop','onlyoffice-desktopeditors.desktop','40-terminal.desktop'):
@@ -195,15 +204,21 @@ class HubWindow(Gtk.ApplicationWindow):
   try:self.async_android({'action':'open','path':self.model.android_download_path(path)},lambda r:self.destroy())
   except Exception as error:self.status(str(error),True)
  def control_ui(self):
-  self.battery=label('Consultando Android…','hub-subtitle');self.box.pack_start(self.battery,False,False,0)
+  self.faces=FlipStack();self.box.pack_start(self.faces,True,True,0)
+  self.control_front=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12)
+  self.faces.add_named(self.control_front,'controls');self.notifications_ui()
+  self.faces.set_visible_child_name('controls')
+  self.control_front.pack_start(self.button('Notificaciones',self.show_notifications,'preferences-system-notifications-symbolic'),False,False,0)
+  self.battery=label('Consultando Android…','hub-subtitle');self.control_front.pack_start(self.battery,False,False,0)
   tiles=Gtk.Grid(column_spacing=8,row_spacing=8)
   for index,(title,icon,page) in enumerate([('Wi-Fi','network-wireless-symbolic','wifi'),('Bluetooth','bluetooth-symbolic','bluetooth'),('Sonido','audio-volume-high-symbolic','sound'),('Pantalla Android','display-brightness-symbolic','display')]):
    b=self.button(title,lambda b,p=page:self.async_android({'action':'settings','page':p},lambda r:self.destroy()),icon);b.set_hexpand(True);tiles.attach(b,index%2,index//2,1,1)
-  self.box.pack_start(tiles,False,False,0);self.sliders={};self.slider_pending={};self.loading_sliders=True
+  self.control_front.pack_start(tiles,False,False,0);self.sliders={};self.slider_pending={};self.loading_sliders=True
   for title,action,icon in [('Volumen multimedia','volume','audio-volume-high-symbolic'),('Brillo del teléfono','brightness','display-brightness-symbolic')]:
-   card=style(Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5),'hub-card');head=Gtk.Box(spacing=8);head.pack_start(image(name=icon,size=20),False,False,0);head.pack_start(label(title),True,True,0);card.pack_start(head,False,False,0);slider=Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL,0,100,1);slider.set_value_pos(Gtk.PositionType.RIGHT);slider.set_digits(0);slider.set_sensitive(False);card.pack_start(slider,False,False,0);self.sliders[action]=slider;slider.connect('value-changed',lambda s,a=action:self.slider_changed(a,s));self.box.pack_start(card,False,False,0)
-  appearance=Gtk.Box(spacing=8);appearance.pack_start(label('Modo oscuro'),True,True,0);switch=Gtk.Switch();switch.set_active('dark' in self.hub.xfget('xsettings','/Net/ThemeName','').lower());switch.connect('notify::active',self.set_dark);appearance.pack_end(switch,False,False,0);self.box.pack_start(appearance,False,False,0)
-  actions=Gtk.Box(spacing=8);actions.pack_start(self.button('Apps Android',lambda b:self.hub.show_mode('choose'),'view-app-grid-symbolic'),True,True,0);actions.pack_start(self.button('Dock',lambda b:self.desktop_command(['xfce4-panel','--preferences=2']),'emblem-system-symbolic'),False,False,0);actions.pack_end(self.button('Pantalla',lambda b:self.desktop_command(['xfce4-display-settings']),'video-display-symbolic'),False,False,0);self.box.pack_start(actions,False,False,0)
+   card=style(Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5),'hub-card');head=Gtk.Box(spacing=8);head.pack_start(image(name=icon,size=20),False,False,0);head.pack_start(label(title),True,True,0);card.pack_start(head,False,False,0);slider=Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL,0,100,1);slider.set_value_pos(Gtk.PositionType.RIGHT);slider.set_digits(0);slider.set_sensitive(False);card.pack_start(slider,False,False,0);self.sliders[action]=slider;slider.connect('value-changed',lambda s,a=action:self.slider_changed(a,s));self.control_front.pack_start(card,False,False,0)
+  appearance=Gtk.Box(spacing=8);appearance.pack_start(label('Modo oscuro · MacDesk y Android'),True,True,0);self.loading_theme=True;self.dark_switch=Gtk.Switch();self.dark_switch.set_active('dark' in self.hub.xfget('xsettings','/Net/ThemeName','').lower());self.dark_switch.set_sensitive(False);self.dark_switch.connect('notify::active',self.set_dark);appearance.pack_end(self.dark_switch,False,False,0);self.loading_theme=False;self.control_front.pack_start(appearance,False,False,0)
+  actions=Gtk.Box(spacing=8);actions.pack_start(self.button('Apps Android',lambda b:self.hub.show_mode('choose'),'view-app-grid-symbolic'),True,True,0);actions.pack_start(self.button('Dock',lambda b:self.desktop_command(['xfce4-panel','--preferences=2']),'emblem-system-symbolic'),False,False,0);actions.pack_end(self.button('Pantalla',lambda b:self.desktop_command(['xfce4-display-settings']),'video-display-symbolic'),False,False,0);self.control_front.pack_start(actions,False,False,0)
+  self.theme_detail=label('Consultando apariencia de Android…','hub-subtitle');self.control_front.pack_start(self.theme_detail,False,False,0)
   self.async_android({'action':'status'},self.got_status)
  def got_status(self,response):
   battery=response.get('battery');self.battery.set_text(f'Android · Batería {battery}%' + (' · Cargando' if response.get('charging') else '') if battery is not None else 'Android conectado')
@@ -211,6 +226,11 @@ class HubWindow(Gtk.ApplicationWindow):
   for action,slider in self.sliders.items():
    if response.get(action) is not None:slider.set_value(response[action]);slider.set_sensitive(True)
   self.loading_sliders=False
+  if 'dark' in response:
+   self.dark_switch.set_sensitive(True)
+   local='dark' in self.hub.xfget('xsettings','/Net/ThemeName','').lower()
+   self.theme_detail.set_text('MacDesk: '+('oscuro' if local else 'claro')+' · Android: '+('oscuro' if response['dark'] else 'claro'))
+  else:self.theme_detail.set_text('Android no informó su apariencia; reconecta el puente.')
  def slider_changed(self,action,slider):
   if self.loading_sliders:return
   if action in self.slider_pending:GLib.source_remove(self.slider_pending.pop(action))
@@ -224,7 +244,60 @@ class HubWindow(Gtk.ApplicationWindow):
    return False
   self.slider_pending[action]=GLib.timeout_add(400,apply)
  def set_dark(self,switch,prop):
-  dark=switch.get_active();self.hub.xfset('xsettings','/Net/ThemeName','string','Adwaita-dark' if dark else 'Adwaita');self.hub.xfset('xsettings','/Net/IconThemeName','string','BigSur-dark' if dark else 'BigSur');atomic_json(self.model.root/'state/desktop-hub.json',{'dark':dark});self.refresh_theme()
+  if self.loading_theme:return
+  dark=switch.get_active();switch.set_sensitive(False);self.status('Cambiando apariencia en MacDesk y Android…')
+  def worker():
+   error=None
+   try:
+    apply_global_dark(dark,lambda p:request(p,model=self.model),self.hub.xfget,self.hub.xfset,lambda value:atomic_json(self.model.root/'state/desktop-hub.json',value))
+   except Exception as failure:error=str(failure)
+   def complete():
+    if not self.get_visible():return False
+    self.loading_theme=True;switch.set_active('dark' in self.hub.xfget('xsettings','/Net/ThemeName','').lower());self.loading_theme=False;switch.set_sensitive(True);self.refresh_theme()
+    self.theme_detail.set_text('MacDesk y Android: '+('oscuro' if dark else 'claro') if not error else 'No se pudo completar el cambio global.')
+    self.status(error or '',bool(error));return False
+   GLib.idle_add(complete)
+  threading.Thread(target=worker,daemon=True).start()
+ def notifications_ui(self):
+  back=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12);self.faces.add_named(back,'notifications')
+  head=Gtk.Box(spacing=8);head.pack_start(self.button('Controles',self.show_controls,'go-previous-symbolic'),False,False,0);self.notification_refresh=self.button('Actualizar',self.load_notifications,'view-refresh-symbolic');head.pack_end(self.notification_refresh,False,False,0);back.pack_start(head,False,False,0)
+  back.pack_start(label('Notificaciones','hub-title'),False,False,0)
+  self.notification_count=label('Al abrir se consultan las notificaciones de Android.','hub-subtitle');self.notification_count.set_line_wrap(True);back.pack_start(self.notification_count,False,False,0)
+  scroll=Gtk.ScrolledWindow();scroll.set_policy(Gtk.PolicyType.NEVER,Gtk.PolicyType.AUTOMATIC);scroll.set_min_content_height(310);scroll.set_max_content_height(360);scroll.set_vexpand(True);back.pack_start(scroll,True,True,0)
+  self.notification_items=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10);scroll.add(self.notification_items)
+  self.notification_busy=False
+ def show_notifications(self,button):
+  if self.faces.flip_to('notifications'):self.load_notifications(None)
+ def show_controls(self,button):self.faces.flip_to('controls')
+ def load_notifications(self,button):
+  if self.notification_busy:return
+  self.notification_busy=True;self.notification_refresh.set_sensitive(False);self.notification_count.set_text('Consultando Android…')
+  def failed():
+   if self.get_visible():
+    self.notification_busy=False;self.notification_refresh.set_sensitive(True);self.notification_count.set_text('No se pudo actualizar. Reconecta Android y pulsa Actualizar.')
+   return False
+  self.async_android({'action':'notifications'},self.got_notifications,failed)
+ def got_notifications(self,response):
+  self.notification_busy=False;self.notification_refresh.set_sensitive(True)
+  for child in self.notification_items.get_children():child.destroy()
+  apps={a['package']:a for a in self.model.catalog()};items=response.get('notifications',[])
+  for item in items:
+   app=apps.get(item['package']);card=style(Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=6),'notification-card')
+   head=Gtk.Box(spacing=8);head.pack_start(image(self.model.icon_path(app) if app else None,name='preferences-system-notifications-symbolic',size=24),False,False,0);head.pack_start(label(app['label'] if app else item['package'],'notification-app'),True,True,0)
+   try:stamp=datetime.fromtimestamp(item.get('timestamp',0)/1000).strftime('%H:%M') if item.get('timestamp') else ''
+   except (ValueError,OverflowError,OSError):stamp=''
+   head.pack_end(label(stamp,'hub-subtitle'),False,False,0);card.pack_start(head,False,False,0)
+   for text,kind,lines in [(item.get('title',''),'notification-title',2),(item.get('text',''),'notification-body',5)]:
+    if text:
+     content=label(text,kind);content.set_line_wrap(True);content.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);content.set_max_width_chars(38);content.set_ellipsize(Pango.EllipsizeMode.END);content.set_lines(lines);content.set_tooltip_text(text);card.pack_start(content,False,False,0)
+   if app:
+    open_button=self.button('Abrir app',lambda b,c=app['component']:self.android_launch(c),'go-next-symbolic');card.pack_start(open_button,False,False,0)
+   self.notification_items.pack_start(card,False,False,0)
+  if not items:self.notification_items.pack_start(label('No tienes notificaciones.','hub-subtitle'),False,False,0)
+  summary=f'{len(items)} notificación'+('es' if len(items)!=1 else '')+' · Android'
+  if response.get('truncated'):summary+=' · vista parcial; pulsa Actualizar'
+  if response.get('unavailable'):summary+=' · algunas cambiaron mientras se consultaban'
+  self.notification_count.set_text(summary);self.notification_items.show_all()
  def desktop_command(self,args):subprocess.Popen(args,start_new_session=True);self.destroy()
 
 class HubApplication(Gtk.Application):
@@ -242,7 +315,13 @@ class HubApplication(Gtk.Application):
   for window in self.get_windows():window.destroy()
   window=HubWindow(self,mode);window.present()
  def xfget(self,channel,prop,default):
+  if channel=='gnome':
+   settings=Gio.Settings.new('org.gnome.desktop.interface');return settings.get_string(prop)
   p=subprocess.run(['xfconf-query','-c',channel,'-p',prop],text=True,capture_output=True)
   return p.stdout.strip() if p.returncode==0 else default
  def xfset(self,channel,prop,kind,value):
+  if channel=='gnome':
+   settings=Gio.Settings.new('org.gnome.desktop.interface')
+   if not settings.set_string(prop,str(value)):raise RuntimeError('No se pudo cambiar la apariencia GTK')
+   Gio.Settings.sync();return
   subprocess.run(['xfconf-query','-c',channel,'-p',prop,'-n','-t',kind,'-s',str(value)],check=True)

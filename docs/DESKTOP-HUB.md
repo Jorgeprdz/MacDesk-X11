@@ -28,3 +28,51 @@ Validación: pruebas del modelo (selección, retirada de accesos, rutas, orden y
 Además de la carpeta, el dock tiene accesos fijos a WhatsApp, Chrome, Samsung Internet y Spotify con iconos macOS. `scripts/macdesk-android-open` los resuelve por paquete contra el catálogo actual. Cambiar la selección de Aplicaciones no elimina estos cuatro accesos.
 
 El dock y los iconos del escritorio comparten `scripts/dock-geometry-listener`: resize con debounce para el escritorio, strut inferior para identificar el dock y tamaños adaptados al ancho. Véase `docs/STABLE-BACKUP-2026-10-04.md` para restauración y resultados de pruebas.
+
+## Notificaciones y apariencia global
+
+Centro de control → **Notificaciones**: la misma tarjeta hace un giro horizontal
+breve (340 ms) y muestra una lista de tarjetas inspiradas en One UI. **Controles**
+regresa a los deslizadores; **Actualizar** obtiene una nueva instantánea. Cada
+aviso muestra icono/nombre de app, título, mensaje y hora; **Abrir app** abre la
+aplicación correspondiente, no una conversación o notificación específica.
+
+Se usa el puente ADB existente, sin instalar un NotificationListenerService. Se
+consulta el usuario actual y se leen como máximo 40 avisos, con tiempo de trabajo
+limitado, filtrando otros perfiles. Las notificaciones marcadas sensibles por
+Android muestran un texto protegido. Avisos sin texto ofrecen un placeholder;
+las notificaciones que desaparecen durante la consulta se omiten. Una respuesta
+parcial se indica en el panel. No se interceptan nuevos avisos ni se consulta en
+segundo plano: la actualización ocurre al abrir esa cara o pulsar Actualizar.
+
+Los mensajes no se escriben en los logs ni se incluyen en el respaldo. La respuesta
+JSON privada se elimina al consumirla; si el cliente se cierra o abandona la
+consulta, el productor la elimina 30 segundos después de escribirla. Esta es una
+expiración puntual de la respuesta, sin servicio ni timer permanente. La animación
+usa el frame clock de GTK y elimina su callback al terminar o cerrar la ventana.
+
+**Modo oscuro · MacDesk y Android** cambia Android mediante `cmd uimode night`
+y conserva el tema macOS GoldenGate claro/oscuro para GTK y XFWM, los iconos
+BigSur/WhiteSur y el esquema de color de GNOME/GTK. Las aplicaciones que usan un
+tema propio pueden conservarlo. Si una parte falla, se intenta restaurar la
+apariencia anterior, incluido el modo automático/programado de Android, y se
+muestra el error. La preferencia MacDesk se conserva al reiniciar.
+
+**Ctrl+Alt+Espacio** abre/cierra Aplicaciones desde MacDesk. El atajo se registra
+en XFCE; no se instala un interceptor de teclado Android. Ctrl+Espacio queda libre.
+El setup de sesión recrea este atajo si está libre o ya pertenece a MacDesk, y
+conserva cualquier acción distinta que el usuario haya asignado posteriormente.
+
+Dependencia adicional para el giro: `python3-gi-cairo` (incluye `python3-cairo`).
+Ya instalada en el Debian del teléfono; si falta al restaurar, el panel alterna
+las caras sin animación y conserva sus funciones.
+
+Validación 2026-10-04: 20 tests unitarios; prueba GTK aislada de giro/volver,
+notificaciones, switch y cierre durante animación; prueba real de ambas
+apariencias en Android/GTK/XFWM/GNOME, lectura y renderizado de 10 tarjetas durante
+la prueba (el número cambia con las notificaciones activas), y apertura real de
+Aplicaciones con Ctrl+Alt+Espacio. Se restauró la apariencia previa tras las pruebas.
+
+Vista de referencia con contenido **sintético**, sin mensajes del teléfono:
+
+![Tarjetas de notificaciones One UI](images/control-notifications-example.png)

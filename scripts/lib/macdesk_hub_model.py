@@ -31,7 +31,12 @@ def validate_request(request,catalog):
   try:Path(name).relative_to(root)
   except ValueError:raise ValueError('Solo se pueden abrir archivos de Descargas')
   if '..' in Path(name).parts:raise ValueError('Ruta inválida')
- elif action not in ('catalog','status'):raise ValueError('Acción desconocida')
+ elif action=='dark_mode':
+  has_enabled='enabled' in request;has_mode='mode' in request
+  if has_enabled==has_mode:raise ValueError('Selecciona un solo modo de apariencia')
+  if has_enabled and not isinstance(request['enabled'],bool):raise ValueError('Modo oscuro inválido')
+  if has_mode and request['mode'] not in ('yes','no','auto','custom_schedule','custom_bedtime'):raise ValueError('Modo Android inválido')
+ elif action not in ('catalog','status','notifications'):raise ValueError('Acción desconocida')
  return request
 
 class HubModel:

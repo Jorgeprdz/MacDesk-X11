@@ -5,6 +5,8 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts/lib'))
 from macdesk_hub_model import HubModel,SETTINGS_PAGES,validate_request,atomic_json
+from macdesk_notifications import notification_snapshot,expire_response
+from macdesk_appearance import change_android_mode
 PREFIX=Path('/data/data/com.termux/files/usr');STATE=ROOT/'state/android-apps';STATE.mkdir(parents=True,exist_ok=True)
 MODEL=HubModel(ROOT)
 
@@ -24,12 +26,37 @@ def device():
 
 def shell(*args):return run([PREFIX/'bin/adb','-s',device(),'shell',shlex.join([str(a) for a in args])])
 
+def appearance():
+ mode_output=shell('cmd','uimode','night')
+ mode=re.search(r'Night mode:\s*(\w+)',mode_output)
+ if not mode:raise RuntimeError('Android no informó su modo de apariencia')
+ mode=mode[1]
+ if mode in ('yes','no'):dark=mode=='yes'
+ else:
+  state=shell('dumpsys','uimode');computed=re.search(r'mComputedNightMode=(true|false)',state)
+  if not computed:raise RuntimeError('No se pudo leer el modo oscuro de Android')
+  dark=computed[1]=='true'
+ return {'dark':dark,'night_mode':mode}
+
+def notifications():
+ serial=device()
+ def query(*args):
+  try:return run([PREFIX/'bin/adb','-s',serial,'shell',shlex.join([str(a) for a in args])],3)
+  except subprocess.TimeoutExpired as error:raise RuntimeError('Android tardó en leer una notificación') from error
+ user=query('am','get-current-user')
+ if not user.isdigit():raise RuntimeError('No se pudo identificar el usuario Android')
+ keys=query('cmd','notification','list')
+ return notification_snapshot(keys,lambda key:query('cmd','notification','get',key),user_id=int(user))
+
 def status():
  volume=shell('cmd','media_session','volume','--get','--stream','3')
  match=re.search(r'volume is (\d+) in range \[0\.\.(\d+)\]',volume)
  battery=shell('dumpsys','battery');level=re.search(r'^\s*level:\s*(\d+)',battery,re.M)
  brightness=shell('settings','get','system','screen_brightness')
- return {'volume':round(int(match[1])*100/max(1,int(match[2]))) if match else None,'volume_max':int(match[2]) if match else 15,'brightness':round(int(brightness)*100/255) if brightness.isdigit() else None,'battery':int(level[1]) if level else None,'charging':bool(re.search(r'(?:AC|USB|Wireless) powered: true',battery)),'connected':True}
+ result={'volume':round(int(match[1])*100/max(1,int(match[2]))) if match else None,'volume_max':int(match[2]) if match else 15,'brightness':round(int(brightness)*100/255) if brightness.isdigit() else None,'battery':int(level[1]) if level else None,'charging':bool(re.search(r'(?:AC|USB|Wireless) powered: true',battery)),'connected':True}
+ try:result.update(appearance())
+ except RuntimeError:pass
+ return result
 
 def handle(request):
  validate_request(request,MODEL.catalog());action=request['action']
@@ -40,6 +67,10 @@ def handle(request):
   if p.returncode:raise RuntimeError((p.stderr or 'No se pudo actualizar el catálogo').strip()[-400:])
   return {'count':len(MODEL.catalog())}
  if action=='status':return status()
+ if action=='notifications':return notifications()
+ if action=='dark_mode':
+  mode=request.get('mode', 'yes' if request.get('enabled') else 'no')
+  return change_android_mode(mode,appearance,lambda mode:shell('cmd','uimode','night',mode))
  if action=='launch':
   out=shell('am','start','--user','0','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER','-n',request['component'],'-f','0x10200000')
   if 'Error:' in out:raise RuntimeError(out[-400:])
@@ -80,11 +111,14 @@ def handle(request):
 def main():
  request_id=sys.argv[1]
  if not re.fullmatch(r'[a-f0-9]{32}',request_id):raise ValueError('Invalid request id')
- response={'ok':False}
+ response={'ok':False};request={}
  try:
   request=json.loads(base64.b64decode(sys.argv[2],validate=True));response={'ok':True,**handle(request)}
  except Exception as error:response={'ok':False,'error':str(error)}
  results=STATE/'responses';results.mkdir(mode=0o700,exist_ok=True)
- atomic_json(results/(request_id+'.json'),response)
- print(json.dumps(response,ensure_ascii=False))
+ result_path=results/(request_id+'.json');atomic_json(result_path,response)
+ # Notification text lives only in the short-lived response file, never logs.
+ summary={'ok':response['ok'],'action':request.get('action'),'count':len(response.get('notifications',[]))} if response.get('ok') and request.get('action')=='notifications' else response
+ print(json.dumps(summary,ensure_ascii=False),flush=True)
+ if request.get('action')=='notifications':expire_response(result_path)
 if __name__=='__main__':main()
