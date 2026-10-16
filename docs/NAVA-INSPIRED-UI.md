@@ -42,7 +42,7 @@ registered because MacDesk has an unresolved DeX/Super keyboard conflict.
 - Actual activation and rollback on Galaxy S25, DeX 1920x1080.
 - Dock restarts and geometry changes, XFCE panel rgba handling.
 - SAFE_FALLBACK and Turnip/Zink stability, RSS/CPU checks.
-- Persistence after restart: current MacDesk session code may reset the Plank
-  theme to GoldenGate on next session; reapply in the graphical session.
+- Persistence after restart: the startup guard should preserve the selected
+  Nava dock; confirm this on a real device before marking it PASS.
 - Regression: keyboard, focus, Nautilus, Firefox, recovery, stable themes.
 - No merge until physical validation and user approval.
