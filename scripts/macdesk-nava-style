@@ -1,0 +1,111 @@
+#!/bin/sh
+# Original, optional Nava-inspired MacDesk theme. No proprietary Nava OS files.
+# Run inside the active Debian/XFCE session, not in host Termux.
+set -eu
+mode=plan
+[ "$#" -eq 0 ] || mode="$1"
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+if [ -n "$(printenv MACDESK_ROOT 2>/dev/null)" ]; then ROOT="$(printenv MACDESK_ROOT)"; fi
+STATE="$HOME/.local/state/macdesk-nava"
+SCHEMA="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+PANEL="/panels/panel-1"
+die() { printf 'MacDesk Nava: %s\n' "$*" >&2; exit 1; }
+getxf() { xfconf-query -c "$1" -p "$2" 2>/dev/null; }
+setxf() { xfconf-query -c "$1" -p "$2" -s "$3"; }
+set_rgba() {
+  xfconf-query -c xfce4-panel -p "$PANEL/background-rgba" -a \
+    -t double -s "$1" -t double -s "$2" \
+    -t double -s "$3" -t double -s "$4"
+}
+save_once() {
+  [ ! -f "$STATE/.saved" ] || return 0
+  mkdir -p "$STATE"
+  getxf xsettings /Net/ThemeName > "$STATE/gtk" || :
+  getxf xfwm4 /general/theme > "$STATE/xfwm" || :
+  getxf xfce4-panel "$PANEL/background-style" > "$STATE/panel-style" || :
+  getxf xfce4-panel /panels/dark-mode > "$STATE/panel-dark" || :
+  getxf xfce4-panel "$PANEL/background-rgba" |
+    awk '/^[[:space:]]*[0-9]+([.][0-9]+)?[[:space:]]*$/ {printf "%s ", $1}' \
+    > "$STATE/panel-rgba" || :
+  gsettings get "$SCHEMA" theme > "$STATE/plank"
+  : > "$STATE/.saved"
+}
+restore_property() {
+  [ -s "$STATE/$3" ] || return 0
+  setxf "$1" "$2" "$(cat "$STATE/$3")" || :
+}
+case "$mode" in
+  plan)
+    cat <<'EOF'
+MacDesk Nava-inspired visual profile (preview)
+- XFCE/XFWM and the existing compositor stay unchanged.
+- Original, translucent light/dark Plank themes; coordinated panel color.
+- One-time backup of current GTK, XFWM, panel and dock preferences.
+- No Wayland swap, new background process or copied Nava assets.
+Use from an XFCE Debian terminal: sh scripts/macdesk-nava-style apply-dark
+Undo: sh scripts/macdesk-nava-style rollback
+EOF
+    exit 0 ;;
+  apply-dark|apply-light|rollback|status) ;;
+  *) die "usage: $0 plan|apply-dark|apply-light|rollback|status" ;;
+esac
+[ -n "$DISPLAY" ] || die "Run inside the active Debian/XFCE session."
+command -v xfconf-query >/dev/null 2>&1 || die "xfconf-query missing."
+command -v gsettings >/dev/null 2>&1 || die "gsettings missing."
+gsettings get "$SCHEMA" theme >/dev/null 2>&1 ||
+  die "Plank dock schema missing; launch MacDesk first."
+if [ "$mode" = status ]; then
+  printf 'Plank: %s\nGTK: %s\nXFWM: %s\n' \
+    "$(gsettings get "$SCHEMA" theme)" \
+    "$(getxf xsettings /Net/ThemeName)" \
+    "$(getxf xfwm4 /general/theme)"
+  [ ! -f "$STATE/.saved" ] || echo "Rollback snapshot: available"
+  exit 0
+fi
+if [ "$mode" = rollback ]; then
+  [ -f "$STATE/.saved" ] || die "No Nava snapshot exists."
+  restore_property xsettings /Net/ThemeName gtk
+  restore_property xfwm4 /general/theme xfwm
+  restore_property xfce4-panel "$PANEL/background-style" panel-style
+  restore_property xfce4-panel /panels/dark-mode panel-dark
+  if [ -s "$STATE/panel-rgba" ]; then
+    set -- $(cat "$STATE/panel-rgba")
+    if [ "$#" -eq 4 ]; then set_rgba "$1" "$2" "$3" "$4" || :; fi
+  fi
+  [ ! -s "$STATE/plank" ] || gsettings set "$SCHEMA" theme "$(cat "$STATE/plank")"
+  rm -f "$STATE/.saved"
+  echo "MACDESK_NAVA_ROLLBACK=PASS"
+  exit 0
+fi
+if [ "$mode" = apply-dark ]; then
+  name=Nava-Inspired-Dark; base=GoldenGate-Dark
+  dark=true; red=0.085; green=0.115; blue=0.170; alpha=0.80
+else
+  name=Nava-Inspired-Light; base=GoldenGate-Light
+  dark=false; red=0.88; green=0.92; blue=0.97; alpha=0.76
+fi
+source="$ROOT/assets/themes/$name/plank/dock.theme"
+[ -s "$source" ] || die "Theme file missing: $source"
+getxf xsettings /Net/ThemeName >/dev/null || die "XFCE xsettings not responding."
+getxf xfwm4 /general/theme >/dev/null || die "XFWM config not responding."
+save_once
+dest="$HOME/.local/share/plank/themes/$name"
+mkdir -p "$dest"
+install -m 0644 "$source" "$dest/dock.theme"
+setxf xsettings /Net/ThemeName "$base"
+setxf xfwm4 /general/theme "$base"
+setxf xfce4-panel "$PANEL/background-style" 1 ||
+  echo "Warning: panel style not updated" >&2
+setxf xfce4-panel /panels/dark-mode "$dark" ||
+  echo "Warning: panel mode not updated" >&2
+if [ -s "$STATE/panel-rgba" ]; then
+  set -- $(cat "$STATE/panel-rgba")
+  if [ "$#" -eq 4 ]; then
+    set_rgba "$red" "$green" "$blue" "$alpha" ||
+      echo "Warning: panel RGBA not supported; original retained" >&2
+  fi
+fi
+gsettings set "$SCHEMA" theme "$name"
+echo "MACDESK_NAVA_APPLY=PASS ($name)"
+echo "Launcher: sh $ROOT/scripts/macdesk-nava-command"
+echo "Rollback: sh $ROOT/scripts/macdesk-nava-style rollback"

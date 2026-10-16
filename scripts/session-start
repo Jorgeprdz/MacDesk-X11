@@ -158,6 +158,19 @@ current_dock_items="$(gsettings get "$plank_schema" dock-items)"
 [ "$current_dock_items" = "$curated_dock_items" ] || \
   gsettings set "$plank_schema" dock-items "$curated_dock_items"
 gsettings set "$plank_schema" pinned-only true
+# Respect an explicitly selected Nava-inspired dock on subsequent MacDesk
+# launches. Default users keep GoldenGate; a missing preview asset falls back.
+selected_preview="$(gsettings get "$plank_schema" theme 2>/dev/null | tr -d "'")"
+case "$selected_preview" in
+  Nava-Inspired-Light|Nava-Inspired-Dark)
+    preview_file="$ROOT/assets/themes/$selected_preview/plank/dock.theme"
+    if [ -s "$preview_file" ]; then
+      mkdir -p "$plank_themes/$selected_preview"
+      cp "$preview_file" "$plank_themes/$selected_preview/dock.theme"
+      plank_theme="$selected_preview"
+    fi
+    ;;
+esac
 gsettings set "$plank_schema" theme "$plank_theme"
 
 # Record this session and validate the actual shared bus/clients after startxfce4.
