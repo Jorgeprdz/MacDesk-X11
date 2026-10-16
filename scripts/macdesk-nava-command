@@ -1,0 +1,14 @@
+#!/bin/sh
+# Keyboard-first command launcher; no resident service.
+set -eu
+[ -n "$DISPLAY" ] || { echo "Run inside the MacDesk graphical session." >&2; exit 1; }
+if command -v xfce4-appfinder >/dev/null 2>&1; then
+  exec xfce4-appfinder --collapsed
+elif command -v rofi >/dev/null 2>&1; then
+  exec rofi -show drun
+elif command -v xfrun4 >/dev/null 2>&1; then
+  exec xfrun4
+else
+  echo "No XFCE application finder or rofi installed." >&2
+  exit 1
+fi
